@@ -1,9 +1,4 @@
-import { google } from 'googleapis';
-
-const youtube = google.youtube('v3');
-const translate = google.translate('v2');
-
-const API_KEY = 'YOUR_YOUTUBE_API_KEY'; // YouTubeのAPIキーを設定
+import { DOMParser } from '@xmldom/xmldom';
 
 export interface Subtitle {
   id: number;
@@ -13,72 +8,92 @@ export interface Subtitle {
   translation?: string;
 }
 
-interface Caption {
-  start: string;
-  dur: string;
-  text: string;
+interface CaptionTrack {
+  baseUrl: string;
+  name: {
+    runs: [{
+      text: string;
+    }];
+  };
+  languageCode: string;
 }
 
-const parseTime = (time: string): number => {
-  const [hours, minutes, seconds] = time.split(':').map(Number);
-  return hours * 3600 + minutes * 60 + seconds;
-};
+interface CaptionsData {
+  playerCaptionsTracklistRenderer: {
+    captionTracks: CaptionTrack[];
+  };
+}
 
 export const fetchSubtitles = async (videoId: string): Promise<Subtitle[]> => {
   try {
-    // 1. 字幕トラックの一覧を取得
-    const captionResponse = await youtube.captions.list({
-      key: API_KEY,
-      part: ['snippet'],
-      videoId: videoId
-    });
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    const pageResponse = await fetch(videoUrl);
+    const pageText = await pageResponse.text();
 
-    if (!captionResponse.data.items?.length) {
-      throw new Error('No captions found for this video');
+    // captionsデータを探す
+    const captionsMatch = pageText.match(/"captions":({.*?playerCaptionsTracklistRenderer.*?}}})/);
+    if (!captionsMatch) {
+      console.log('No captions data found');
+      return [];
     }
 
-    // 英語の字幕を優先的に探す
-    const captionTrack = captionResponse.data.items.find(
-      item => item.snippet?.language === 'en'
-    ) || captionResponse.data.items[0];
+    try {
+      // baseUrlを抽出する正規表現パターンを修正
+      const baseUrlPattern = /{"baseUrl":"([^"]+)","name":{"runs":\[{"text":"[^"]*"}]},"vssId":"\.[^"]*","languageCode":"(en|ja)"/g;
+      const matches = [...captionsMatch[1].matchAll(baseUrlPattern)];
 
-    // 2. 字幕データを取得
-    const response = await fetch(
-      `https://www.youtube.com/api/timedtext?lang=${captionTrack.snippet?.language}&v=${videoId}&fmt=json3`
-    );
-    
-    const data = await response.json();
-    
-    // 3. 字幕データを整形
-    return data.events
-      .filter((event: Caption) => event.text && event.start)
-      .map((event: Caption, index: number) => ({
-        id: index + 1,
-        startTime: parseFloat(event.start),
-        endTime: parseFloat(event.start) + parseFloat(event.dur),
-        text: event.text.replace(/\n/g, ' '),
-        // 必要に応じて翻訳APIを使用して日本語訳を追加することも可能
+      let englishSubtitles: Subtitle[] = [];
+      let japaneseSubtitles: Subtitle[] = [];
+
+      // 英語と日本語の字幕を取得
+      for (const match of matches) {
+        const baseUrl = decodeURIComponent(
+          match[1]
+            .replace(/\\u0026/g, '&')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+        );
+        
+        const languageCode = match[2];
+        const response = await fetch('https://www.youtube.com' + baseUrl);
+        if (!response.ok) continue;
+
+        const text = await response.text();
+        if (!text) continue;
+
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, 'text/xml');
+        const textElements = xmlDoc.getElementsByTagName('text');
+
+        const subtitles = Array.from(textElements).map((element, index) => ({
+          id: index + 1,
+          startTime: parseFloat(element.getAttribute('start') || '0'),
+          endTime: parseFloat(element.getAttribute('dur') || '0') + parseFloat(element.getAttribute('start') || '0'),
+          text: element.textContent?.trim().replace(/\n/g, ' ') || '',
+        }));
+
+        if (languageCode === 'en') {
+          englishSubtitles = subtitles;
+        } else if (languageCode === 'ja') {
+          japaneseSubtitles = subtitles;
+        }
+      }
+
+      // 英語の字幕に日本語の翻訳を追加
+      const combinedSubtitles = englishSubtitles.map((enSub, index) => ({
+        ...enSub,
+        translation: japaneseSubtitles[index]?.text || ''
       }));
 
-  } catch (error) {
-    console.error('Error fetching subtitles:', error);
-    return []; // エラー時は空の配列を返す
-  }
-};
+      return combinedSubtitles;
 
-// 翻訳機能を追加する場合（Google Cloud Translation APIを使用する例）
-const translateText = async (text: string): Promise<string> => {
-  try {
-    const response = await translate.translations.list({
-      key: API_KEY,
-      q: [text], // qは配列で渡す必要があります
-      target: 'ja', // 翻訳先の言語
-    });
+    } catch (error) {
+      console.error('Error processing subtitles:', error);
+      return [];
+    }
 
-    const translation = response.data.translations?.[0]?.translatedText; // 最初の翻訳を取得
-    return translation || '';
   } catch (error) {
-    console.error('Translation error:', error);
-    return '';
+    console.error('Error fetching video page:', error);
+    return [];
   }
 }; 
