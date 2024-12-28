@@ -1,81 +1,107 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, Button, Alert } from 'react-native';
-import LearningApp from './src/components/LearningApp';
-import VideoPlayer from './src/components/VideoPlayer';
-import { extractYouTubeVideoId } from './src/utils/youtube';
-import { fetchSubtitles, Subtitle } from './src/utils/subtitles';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import VideoSelectScreen from './src/screens/VideoSelectScreen';
+import VideoLearningScreen from './src/screens/VideoLearningScreen';
+import VocabularyListScreen from './src/screens/VocabularyListScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
+import { RootStackParamList } from './src/types/navigation';
 
-const App: React.FC = () => {
-  const [videoUrl, setVideoUrl] = useState('');
-  const [videoId, setVideoId] = useState<string | null>(null);
-  const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
+const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
-  const handleLoadVideo = async () => {
-    const extractedId = extractYouTubeVideoId(videoUrl);
-    if (extractedId) {
-      setVideoId(extractedId);
-      try {
-        const subs = await fetchSubtitles(extractedId);
-        if (subs.length > 0) {
-          setSubtitles(subs);
-        } else {
-          Alert.alert('注意', '字幕が見つかりませんでした。');
-        }
-      } catch (error) {
-        Alert.alert('エラー', '字幕の取得に失敗しました。');
-      }
-    } else {
-      Alert.alert('エラー', '有効なYouTube URLを入力してください');
-    }
-  };
-
+function VideoStack() {
   return (
-    <LearningApp>
-      <View style={styles.container}>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={videoUrl}
-            onChangeText={setVideoUrl}
-            placeholder="YouTube URLを入力してください"
-            placeholderTextColor="#999"
-          />
-          <Button title="動画を読み込む" onPress={handleLoadVideo} />
-        </View>
-        
-        {videoId && (
-          <VideoPlayer
-            videoId={videoId}
-            subtitles={subtitles}
-            onTimeUpdate={() => {}}
-          />
-        )}
-      </View>
-    </LearningApp>
+    <Stack.Navigator>
+      <Stack.Screen 
+        name="VideoSelect" 
+        component={VideoSelectScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="VideoLearning"
+        component={VideoLearningScreen}
+        options={{ 
+          headerShown: true,
+          headerTitle: '学習',
+          headerBackTitle: '戻る'
+        }}
+      />
+    </Stack.Navigator>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    maxWidth: 1200,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  inputContainer: {
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 5,
-    paddingHorizontal: 10,
-  },
-});
+function MainStack() {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen
+        name="MainTabs"
+        component={MainTabs}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="VideoPlayer"
+        component={VideoPlayerScreen}
+        options={{
+          headerShown: true,
+          headerTitle: '動画',
+          headerBackTitle: '戻る'
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
 
-export default App;
+function MainTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: '#1976d2',
+        tabBarInactiveTintColor: 'gray',
+      }}
+    >
+      <Tab.Screen
+        name="動画"
+        component={VideoStack}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="play-circle" size={size} color={color} />
+          ),
+          headerShown: false,
+        }}
+      />
+      <Tab.Screen
+        name="単語帳"
+        component={VocabularyListScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="book" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="設定"
+        component={SettingsScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings" size={size} color={color} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <MainStack />
+      </NavigationContainer>
+    </SafeAreaProvider>
+  );
+}

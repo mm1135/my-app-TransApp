@@ -1,28 +1,39 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import YoutubePlayer, { YoutubeIframeRef } from "react-native-youtube-iframe";
 import { Subtitle } from '../utils/subtitles';
-import SubtitleDisplay from './SubtitleDisplay';
+import { SubtitleDisplay } from './SubtitleDisplay';
 
-interface VideoPlayerProps {
+export interface VideoPlayerProps {
   videoId: string;
   subtitles: Subtitle[];
+  initialTime?: number;
   onTimeUpdate?: (time: number) => void;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
   videoId, 
   subtitles, 
+  initialTime = 0,
   onTimeUpdate 
 }) => {
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [currentTime, setCurrentTime] = useState<number>(initialTime);
   const [currentSubtitle, setCurrentSubtitle] = useState<Subtitle | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const playerRef = useRef<YoutubeIframeRef>(null);
 
   const screenWidth = Dimensions.get('window').width;
   const playerHeight = (screenWidth * 9) / 16;
+
+  const videoInfo = {
+    title: `Video ${videoId}`,
+    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/default.jpg`,
+    videoId: videoId
+  };
+
+  const togglePlayPause = useCallback(() => {
+    setIsPlaying(!isPlaying);
+  }, [isPlaying]);
 
   const onStateChange = useCallback((state: string) => {
     switch (state) {
@@ -32,9 +43,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         break;
       case 'playing':
         setIsPlaying(true);
-        break;
-      case 'error':
-        setError('動画の読み込みに失敗しました');
         break;
     }
   }, []);
@@ -71,19 +79,17 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
     };
   }, [isPlaying, subtitles, currentSubtitle, onTimeUpdate]);
 
+  useEffect(() => {
+    if (playerRef.current && initialTime > 0) {
+      playerRef.current.seekTo(initialTime, true);
+    }
+  }, [initialTime]);
+
   const handleTimeChange = async (time: number) => {
     if (playerRef.current) {
       await playerRef.current.seekTo(time, true);
     }
   };
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -107,11 +113,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       </View>
 
       <View style={[styles.subtitlesContainer, { marginTop: playerHeight }]}>
-        <SubtitleDisplay 
+        <SubtitleDisplay
           currentSubtitle={currentSubtitle}
           subtitles={subtitles}
           currentTime={currentTime}
           onTimeChange={handleTimeChange}
+          videoInfo={videoInfo}
+          onWordPress={togglePlayPause}
         />
       </View>
     </View>
@@ -134,15 +142,6 @@ const styles = StyleSheet.create({
   subtitlesContainer: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  errorContainer: {
-    padding: 16,
-    backgroundColor: '#ffebee',
-    borderRadius: 4,
-  },
-  errorText: {
-    color: '#c62828',
-    textAlign: 'center',
   },
 });
 

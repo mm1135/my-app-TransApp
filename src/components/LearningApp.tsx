@@ -1,44 +1,28 @@
-import React, { ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Text } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, SafeAreaView, Platform, StatusBar } from 'react-native';
 
-interface LearningAppProps {
-  children: ReactNode;
-}
+type Props = {
+  children: React.ReactNode;
+};
 
-const LearningApp: React.FC<LearningAppProps> = ({ children }) => {
+const LearningApp: React.FC<Props> = ({ children }) => {
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Learning App</Text>
-      </View>
-      <View style={styles.content}>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
         {children}
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
   },
-  header: {
-    height: 60,
-    backgroundColor: '#1976d2', // MUI's primary color
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 20, // for status bar
-  },
-  headerText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  content: {
+  container: {
     flex: 1,
-    padding: 16,
   },
 });
 
