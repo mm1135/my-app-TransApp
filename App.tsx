@@ -47,9 +47,7 @@ const App: React.FC = () => {
           <VideoPlayer
             videoId={videoId}
             subtitles={subtitles}
-            onTimeUpdate={(time) => {
-              console.log('Current time:', time);
-            }}
+            onTimeUpdate={() => {}}
           />
         )}
       </View>

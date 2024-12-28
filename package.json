@@ -14,6 +14,8 @@
     "@expo/vector-icons": "^14.0.2",
     "@mui/icons-material": "^6.2.0",
     "@mui/material": "^6.2.0",
+    "@react-native-async-storage/async-storage": "^2.1.0",
+    "@sh1r4s4g1/react-native-translation-module": "^0.1.6",
     "@types/react-youtube": "^7.10.0",
     "expo": "~52.0.18",
     "expo-status-bar": "~2.0.0",
