@@ -19,6 +19,7 @@ import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../navigation/types';
 import { fetchSubtitles, Subtitle } from '../utils/subtitles';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { saveVocabularyItem } from '../utils/vocabulary';
 
 type VideoLearningScreenRouteProp = RouteProp<RootStackParamList, 'VideoLearning'>;
 
@@ -38,6 +39,7 @@ export default function VideoLearningScreen() {
   const [newVideoUrl, setNewVideoUrl] = useState('');
   const [showAddVideo, setShowAddVideo] = useState(false);
   const [subtitles, setSubtitles] = useState<Array<Subtitle>>([]);
+  const [currentTime, setCurrentTime] = useState<number>(0);
 
   useEffect(() => {
     loadSavedVideos();
@@ -121,30 +123,40 @@ export default function VideoLearningScreen() {
     }
   };
 
-  const renderRightActions = (url: string) => {
-    return (
-      <TouchableOpacity
-        style={styles.deleteAction}
-        onPress={() => deleteVideo(url)}
-      >
-        <Text style={styles.deleteActionText}>削除</Text>
-      </TouchableOpacity>
-    );
+  const handleSaveWord = async (word: string, subtitle: Subtitle) => {
+    if (!videoId) {
+      Alert.alert('エラー', 'ビデオIDが見つかりません');
+      return;
+    }
+
+    const videoInfo = {
+      title: `Video ${videoId}`,
+      thumbnailUrl: `https://img.youtube.com/vi/${videoId}/default.jpg`,
+      subtitle: subtitle.text,
+      translatedSubtitle: subtitle.translatedText || '',
+      videoId: videoId,
+      startTime: currentTime
+    };
+
+    const vocabularyItem = {
+      word,
+      japaneseTranslation: '',
+      videoInfo,
+      timestamp: Date.now()
+    };
+
+    try {
+      await saveVocabularyItem(vocabularyItem);
+      Alert.alert('保存完了', '単語を保存しました');
+    } catch (error: any) {
+      console.error('Error saving word:', error);
+      Alert.alert('エラー', error.message || '単語の保存に失敗しました');
+    }
   };
 
-  const renderVideoItem = ({ item }: { item: SavedVideo }) => (
-    <Swipeable renderRightActions={() => renderRightActions(item.url)}>
-      <TouchableOpacity
-        style={styles.videoItem}
-        onPress={() => handleVideoSelect(item.url)}
-      >
-        <View style={styles.thumbnailContainer}>
-          <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
-        </View>
-        <Text style={styles.videoTitle}>{item.title}</Text>
-      </TouchableOpacity>
-    </Swipeable>
-  );
+  const handleTimeUpdate = (time: number) => {
+    setCurrentTime(time);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -161,7 +173,11 @@ export default function VideoLearningScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <VideoPlayer videoId={videoId} subtitles={subtitles} />
+        <VideoPlayer
+          videoId={videoId}
+          subtitles={subtitles}
+          onTimeUpdate={handleTimeUpdate}
+        />
       )}
 
       <Modal
@@ -199,7 +215,28 @@ export default function VideoLearningScreen() {
 
             <FlatList
               data={savedVideos}
-              renderItem={renderVideoItem}
+              renderItem={({ item }) => (
+                <Swipeable
+                  renderRightActions={() => (
+                    <TouchableOpacity
+                      style={styles.deleteAction}
+                      onPress={() => deleteVideo(item.url)}
+                    >
+                      <Text style={styles.deleteActionText}>削除</Text>
+                    </TouchableOpacity>
+                  )}
+                >
+                  <TouchableOpacity
+                    style={styles.videoItem}
+                    onPress={() => handleVideoSelect(item.url)}
+                  >
+                    <View style={styles.thumbnailContainer}>
+                      <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
+                    </View>
+                    <Text style={styles.videoTitle}>{item.title}</Text>
+                  </TouchableOpacity>
+                </Swipeable>
+              )}
               keyExtractor={(item) => item.url}
               style={styles.videoList}
             />

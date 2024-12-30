@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { parseYouTubeUrl } from '../utils/youtube';
+import { parseYouTubeUrl, fetchVideoTitle } from '../utils/youtube';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 
@@ -35,6 +35,7 @@ const VideoSelectScreen: React.FC = () => {
   const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([]);
   const [showAddVideo, setShowAddVideo] = useState(false);
   const [newVideoUrl, setNewVideoUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     loadSavedVideos();
@@ -58,13 +59,16 @@ const VideoSelectScreen: React.FC = () => {
       return;
     }
 
-    const newVideo = {
-      title: `YouTube Video ${id}`,
-      url: newVideoUrl,
-      thumbnail: `https://img.youtube.com/vi/${id}/default.jpg`,
-    };
-
+    setIsLoading(true);
     try {
+      const title = await fetchVideoTitle(id);
+      
+      const newVideo = {
+        title: title,
+        url: newVideoUrl,
+        thumbnail: `https://img.youtube.com/vi/${id}/default.jpg`,
+      };
+
       const exists = savedVideos.some(v => v.url === newVideo.url);
       if (exists) {
         Alert.alert('エラー', 'この動画は既に追加されています');
@@ -79,6 +83,8 @@ const VideoSelectScreen: React.FC = () => {
     } catch (error) {
       console.error('動画の保存に失敗しました:', error);
       Alert.alert('エラー', '動画の保存に失敗しました');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -155,13 +161,23 @@ const VideoSelectScreen: React.FC = () => {
           <View style={styles.modalContainer}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>新しい動画を追加</Text>
-              <TextInput
-                style={styles.urlInput}
-                value={newVideoUrl}
-                onChangeText={setNewVideoUrl}
-                placeholder="YouTube URLを入力"
-                autoCapitalize="none"
-              />
+              <View style={styles.urlInputContainer}>
+                <TextInput
+                  style={styles.urlInput}
+                  value={newVideoUrl}
+                  onChangeText={setNewVideoUrl}
+                  placeholder="YouTube URLを入力"
+                  autoCapitalize="none"
+                />
+                {newVideoUrl.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={() => setNewVideoUrl('')}
+                  >
+                    <MaterialIcons name="clear" size={20} color="#666" />
+                  </TouchableOpacity>
+                )}
+              </View>
               <View style={styles.modalButtons}>
                 <TouchableOpacity
                   style={[styles.modalButton, styles.cancelButton]}
@@ -172,8 +188,11 @@ const VideoSelectScreen: React.FC = () => {
                 <TouchableOpacity
                   style={[styles.modalButton, styles.confirmButton]}
                   onPress={handleAddVideo}
+                  disabled={isLoading}
                 >
-                  <Text style={styles.confirmButtonText}>追加</Text>
+                  <Text style={styles.confirmButtonText}>
+                    {isLoading ? '読み込み中...' : '追加'}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -265,12 +284,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 15,
   },
-  urlInput: {
+  urlInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 4,
-    padding: 10,
     marginBottom: 15,
+  },
+  urlInput: {
+    flex: 1,
+    padding: 10,
+  },
+  clearButton: {
+    padding: 10,
   },
   modalButtons: {
     flexDirection: 'row',

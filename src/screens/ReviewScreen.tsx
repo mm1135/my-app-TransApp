@@ -10,16 +10,29 @@ import {
 } from 'react-native';
 import { getVocabularyItems } from '../utils/vocabulary';
 import { VocabularyItem } from '../types/vocabulary';
+import { useRoute, RouteProp } from '@react-navigation/native';
+import { VideoStackParamList } from '../types/navigation';
+
+type ReviewScreenRouteProp = RouteProp<VideoStackParamList, 'Review'>;
 
 const ReviewScreen: React.FC = () => {
+  const route = useRoute<ReviewScreenRouteProp>();
   const [items, setItems] = useState<VocabularyItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [answers, setAnswers] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
-    loadItems();
-  }, []);
+    if (route.params?.items) {
+      const shuffledItems = [...route.params.items].sort(() => Math.random() - 0.5);
+      setItems(shuffledItems);
+      setCurrentIndex(0);
+      setShowAnswer(false);
+      setAnswers({});
+    } else {
+      loadItems();
+    }
+  }, [route.params?.items]);
 
   const loadItems = async () => {
     try {
@@ -91,55 +104,57 @@ const ReviewScreen: React.FC = () => {
   const currentItem = items[currentIndex];
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressText}>
-          {currentIndex + 1} / {items.length}
-        </Text>
-      </View>
+    <View style={styles.container}>
+      <ScrollView style={styles.scrollView}>
+        <View style={styles.progressContainer}>
+          <Text style={styles.progressText}>
+            {currentIndex + 1} / {items.length}
+          </Text>
+        </View>
 
-      <View style={styles.cardContainer}>
-        {highlightWord(currentItem.videoInfo.subtitle, currentItem.word)}
-        
-        {showAnswer ? (
-          <>
-            <View style={styles.answerContainer}>
-              <Text style={styles.wordText}>{currentItem.word}</Text>
-              <Text style={styles.meaningText}>
-                {currentItem.japaneseTranslation}
-              </Text>
-              {currentItem.userImage && (
-                <Image
-                  source={{ uri: currentItem.userImage }}
-                  style={styles.userImage}
-                />
-              )}
-            </View>
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.answerButton, styles.incorrectButton]}
-                onPress={() => handleAnswer(false)}
-              >
-                <Text style={styles.answerButtonText}>❌ 間違えた</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.answerButton, styles.correctButton]}
-                onPress={() => handleAnswer(true)}
-              >
-                <Text style={styles.answerButtonText}>⭕️ 正解</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : (
-          <TouchableOpacity
-            style={styles.showButton}
-            onPress={() => setShowAnswer(true)}
-          >
-            <Text style={styles.showButtonText}>答えを確認</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </ScrollView>
+        <View style={styles.cardContainer}>
+          {highlightWord(currentItem.videoInfo.subtitle, currentItem.word)}
+          
+          {showAnswer ? (
+            <>
+              <View style={styles.answerContainer}>
+                <Text style={styles.wordText}>{currentItem.word}</Text>
+                <Text style={styles.meaningText}>
+                  {currentItem.japaneseTranslation}
+                </Text>
+                {currentItem.userImage && (
+                  <Image
+                    source={{ uri: currentItem.userImage }}
+                    style={styles.userImage}
+                  />
+                )}
+              </View>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.answerButton, styles.incorrectButton]}
+                  onPress={() => handleAnswer(false)}
+                >
+                  <Text style={styles.answerButtonText}>❌ 間違えた</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.answerButton, styles.correctButton]}
+                  onPress={() => handleAnswer(true)}
+                >
+                  <Text style={styles.answerButtonText}>⭕️ 正解</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={styles.showButton}
+              onPress={() => setShowAnswer(true)}
+            >
+              <Text style={styles.showButtonText}>答えを確認</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -147,6 +162,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollView: {
+    flex: 1,
   },
   progressContainer: {
     alignItems: 'center',

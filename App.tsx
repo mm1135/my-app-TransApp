@@ -9,10 +9,12 @@ import VideoLearningScreen from './src/screens/VideoLearningScreen';
 import VocabularyListScreen from './src/screens/VocabularyListScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
-import { RootStackParamList } from './src/types/navigation';
+import ReviewScreen from './src/screens/ReviewScreen';
+import { RootStackParamList, RootTabParamList, VideoStackParamList } from './src/types/navigation';
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<RootTabParamList>();
+const Stack = createStackNavigator<VideoStackParamList>();
+const RootStack = createStackNavigator<RootStackParamList>();
 
 function VideoStack() {
   return (
@@ -31,24 +33,21 @@ function VideoStack() {
           headerBackTitle: '戻る'
         }}
       />
-    </Stack.Navigator>
-  );
-}
-
-function MainStack() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="MainTabs"
-        component={MainTabs}
-        options={{ headerShown: false }}
-      />
       <Stack.Screen
         name="VideoPlayer"
         component={VideoPlayerScreen}
         options={{
           headerShown: true,
           headerTitle: '動画',
+          headerBackTitle: '戻る'
+        }}
+      />
+      <Stack.Screen
+        name="Review"
+        component={ReviewScreen}
+        options={{
+          headerShown: true,
+          headerTitle: '復習',
           headerBackTitle: '戻る'
         }}
       />
@@ -100,7 +99,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <MainStack />
+        <MainTabs />
       </NavigationContainer>
     </SafeAreaProvider>
   );

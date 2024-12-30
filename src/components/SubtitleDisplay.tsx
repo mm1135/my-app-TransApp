@@ -88,7 +88,7 @@ export const SubtitleDisplay = ({ currentSubtitle, subtitles, currentTime, onTim
         animated: true
       });
     }
-  }, [currentSubtitle?.id]);
+  }, [currentSubtitle?.id, currentTime]);
 
   const handleSubtitlePress = (startTime: number) => {
     onTimeChange(startTime);
@@ -143,11 +143,12 @@ export const SubtitleDisplay = ({ currentSubtitle, subtitles, currentTime, onTim
           videoInfo: {
             title: videoInfo.title,
             thumbnailUrl: videoInfo.thumbnailUrl,
-            subtitle: currentSubtitle.text,
+            subtitle: decodeHtmlEntities(currentSubtitle.text),
             translatedSubtitle: translations[currentSubtitle.id] || '',
-            videoId: videoInfo.videoId || ''
+            videoId: videoInfo.videoId,
+            startTime: currentTime
           },
-          timestamp: Date.now(),
+          timestamp: Date.now()
         };
         
         await saveVocabularyItem(vocabularyItem);

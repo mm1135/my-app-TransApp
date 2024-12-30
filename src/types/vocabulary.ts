@@ -12,4 +12,5 @@ export interface VocabularyItem {
   japaneseTranslation: string;
   userImage?: string;
   videoInfo: VideoInfo;
+  timestamp: number;
 } 

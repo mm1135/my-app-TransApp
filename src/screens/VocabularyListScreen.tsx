@@ -13,13 +13,26 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getVocabularyItems, deleteVocabularyItem, updateVocabularyItemImage } from '../utils/vocabulary';
-import { VocabularyItem } from '../types/vocabulary';
+import { VocabularyItem, VideoInfo } from '../types/vocabulary';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, CompositeNavigationProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { RootTabParamList, VideoStackParamList } from '../types/navigation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-type VocabularyListScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type VocabularyListScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<RootTabParamList, '単語帳'>,
+  NativeStackNavigationProp<VideoStackParamList>
+>;
+
+const SAVED_VIDEOS_KEY = 'saved_videos';
+
+interface SavedVideo {
+  title: string;
+  url: string;
+  thumbnail: string;
+}
 
 const VocabularyListScreen: React.FC = () => {
   const navigation = useNavigation<VocabularyListScreenNavigationProp>();
@@ -28,6 +41,27 @@ const VocabularyListScreen: React.FC = () => {
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
   const [showAnswer, setShowAnswer] = useState(false);
   const [reviewItems, setReviewItems] = useState<VocabularyItem[]>([]);
+  const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([]);
+
+  useEffect(() => {
+    loadSavedVideos();
+  }, []);
+
+  const loadSavedVideos = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(SAVED_VIDEOS_KEY);
+      if (saved) {
+        setSavedVideos(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('保存された動画の読み込みに失敗しました:', error);
+    }
+  };
+
+  const getVideoTitle = (videoId: string) => {
+    const video = savedVideos.find(v => v.url.includes(videoId));
+    return video ? video.title : `Video ${videoId}`;
+  };
 
   const loadItems = async () => {
     const savedItems = await getVocabularyItems();
@@ -54,6 +88,7 @@ const VocabularyListScreen: React.FC = () => {
       setShowAnswer(false);
     } else {
       setShowReview(false);
+      Alert.alert('完了', '復習が終了しました！');
     }
   };
 
@@ -89,11 +124,14 @@ const VocabularyListScreen: React.FC = () => {
     await loadItems();
   };
 
-  const handleVideoPress = (videoId: string, startTime: number) => {
-    navigation.navigate('VideoPlayer', {
-      videoId: videoId,
-      subtitles: [],
-      startTime: startTime
+  const handleVideoPress = (videoInfo: VideoInfo) => {
+    navigation.navigate('動画', {
+      screen: 'VideoPlayer',
+      params: {
+        videoId: videoInfo.videoId,
+        startTime: videoInfo.startTime,
+        fromVocabulary: true
+      }
     });
   };
 
@@ -109,6 +147,7 @@ const VocabularyListScreen: React.FC = () => {
             {item.videoInfo && (
               <View style={styles.exampleContainer}>
                 {highlightWord(item.videoInfo.subtitle, item.word)}
+                <Text style={styles.videoTitleText}>{getVideoTitle(item.videoInfo.videoId)}</Text>
               </View>
             )}
           </View>
@@ -146,7 +185,7 @@ const VocabularyListScreen: React.FC = () => {
             {item.videoInfo && (
               <TouchableOpacity
                 style={styles.videoThumbnail}
-                onPress={() => handleVideoPress(item.videoInfo.videoId, item.videoInfo.startTime || 0)}
+                onPress={() => handleVideoPress(item.videoInfo)}
               >
                 <Image
                   source={{ uri: item.videoInfo.thumbnailUrl }}
@@ -193,11 +232,16 @@ const VocabularyListScreen: React.FC = () => {
       <FlatList
         data={items}
         renderItem={renderItem}
-        keyExtractor={(item) => item.word}
+        keyExtractor={(item) => `${item.word}-${item.videoInfo.startTime}`}
         style={styles.list}
       />
 
-      <Modal visible={showReview} animationType="slide">
+      <Modal 
+        visible={showReview} 
+        animationType="slide"
+        transparent={false}
+        statusBarTranslucent={false}
+      >
         <SafeAreaView style={styles.reviewContainer}>
           <TouchableOpacity
             style={styles.closeButton}
@@ -409,18 +453,20 @@ const styles = StyleSheet.create({
   reviewContainer: {
     flex: 1,
     backgroundColor: 'white',
+    marginBottom: 50,
   },
   closeButton: {
     position: 'absolute',
-    top: 10,
+    top: 50,
     right: 10,
     padding: 15,
     zIndex: 1,
   },
   reviewContent: {
     flex: 1,
-    paddingTop: 60,
+    paddingTop: 100,
     paddingHorizontal: 20,
+    paddingBottom: 70,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -436,7 +482,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 20,
     borderRadius: 8,
-    marginBottom: 20,
+    marginBottom: 80,
   },
   exampleText: {
     fontSize: 16,
@@ -532,6 +578,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 8,
     flex: 1,
+  },
+  videoTitleText: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
 

@@ -7,9 +7,10 @@ import { fetchSubtitles, Subtitle } from '../utils/subtitles';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VideoPlayer'>;
 
-export default function VideoPlayerScreen({ route, navigation }: Props) {
-  const { videoId, startTime = 0 } = route.params;
+export default function VideoPlayerScreen({ route }: Props) {
+  const { videoId, startTime } = route.params;
   const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
+  const [initialTime, setInitialTime] = useState<number>(startTime || 0);
 
   useEffect(() => {
     const loadSubtitles = async () => {
@@ -24,12 +25,19 @@ export default function VideoPlayerScreen({ route, navigation }: Props) {
     loadSubtitles();
   }, [videoId]);
 
+  useEffect(() => {
+    if (startTime !== undefined) {
+      setInitialTime(startTime);
+    }
+  }, [startTime]);
+
   return (
     <View style={styles.container}>
       <VideoPlayer
         videoId={videoId}
         subtitles={subtitles}
-        initialTime={startTime}
+        initialTime={initialTime}
+        initialPaused={route.params.fromVocabulary}
       />
     </View>
   );

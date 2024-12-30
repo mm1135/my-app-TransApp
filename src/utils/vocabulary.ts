@@ -3,16 +3,20 @@ import { VocabularyItem } from '../types/vocabulary';
 
 const VOCABULARY_STORAGE_KEY = 'vocabulary_items';
 
-export const saveVocabularyItem = async (item: VocabularyItem): Promise<void> => {
+export const saveVocabularyItem = async (item: VocabularyItem) => {
   try {
-    const items = await getVocabularyItems();
-    const exists = items.some(i => i.word === item.word);
-    if (!exists) {
-      items.push(item);
-      await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(items));
+    const existingItems = await getVocabularyItems();
+    const isDuplicate = existingItems.some(existingItem => existingItem.word === item.word);
+    
+    if (isDuplicate) {
+      throw new Error('この単語は既に保存されています');
     }
+
+    const updatedItems = [...existingItems, item];
+    await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(updatedItems));
   } catch (error) {
     console.error('Error saving vocabulary item:', error);
+    throw error;
   }
 };
 
@@ -26,35 +30,29 @@ export const getVocabularyItems = async (): Promise<VocabularyItem[]> => {
   }
 };
 
-export const deleteVocabularyItem = async (word: string): Promise<void> => {
+export const deleteVocabularyItem = async (word: string) => {
   try {
     const items = await getVocabularyItems();
-    const newItems = items.filter(item => item.word !== word);
-    await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(newItems));
+    const updatedItems = items.filter(item => item.word !== word);
+    await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(updatedItems));
   } catch (error) {
     console.error('Error deleting vocabulary item:', error);
+    throw error;
   }
 };
 
-export const updateVocabularyItemImage = async (word: string, imageUri: string): Promise<void> => {
+export const updateVocabularyItemImage = async (word: string, imageUri: string) => {
   try {
-    const existingItemsJson = await AsyncStorage.getItem(VOCABULARY_STORAGE_KEY);
-    if (!existingItemsJson) return;
-
-    const existingItems: VocabularyItem[] = JSON.parse(existingItemsJson);
-    const updatedItems = existingItems.map(item => {
+    const items = await getVocabularyItems();
+    const updatedItems = items.map(item => {
       if (item.word === word) {
-        return {
-          ...item,
-          userImage: imageUri
-        };
+        return { ...item, userImage: imageUri };
       }
       return item;
     });
-
     await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(updatedItems));
   } catch (error) {
-    console.error('Failed to update vocabulary item image:', error);
+    console.error('Error updating vocabulary item image:', error);
     throw error;
   }
 }; 

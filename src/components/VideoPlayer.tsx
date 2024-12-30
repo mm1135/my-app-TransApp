@@ -9,18 +9,21 @@ export interface VideoPlayerProps {
   subtitles: Subtitle[];
   initialTime?: number;
   onTimeUpdate?: (time: number) => void;
+  initialPaused?: boolean;
 }
 
 const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
   videoId, 
   subtitles, 
   initialTime = 0,
-  onTimeUpdate 
+  onTimeUpdate,
+  initialPaused = false
 }) => {
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [isPlaying, setIsPlaying] = useState<boolean>(!initialPaused);
   const [currentTime, setCurrentTime] = useState<number>(initialTime);
   const [currentSubtitle, setCurrentSubtitle] = useState<Subtitle | null>(null);
   const playerRef = useRef<YoutubeIframeRef>(null);
+  const [isReady, setIsReady] = useState(false);
 
   const screenWidth = Dimensions.get('window').width;
   const playerHeight = (screenWidth * 9) / 16;
@@ -36,15 +39,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [isPlaying]);
 
   const onStateChange = useCallback((state: string) => {
-    switch (state) {
-      case 'ended':
-      case 'paused':
-        setIsPlaying(false);
-        break;
-      case 'playing':
-        setIsPlaying(true);
-        break;
+    if (state === 'ended') {
+      setIsPlaying(false);
     }
+  }, []);
+
+  const onPlayerReady = useCallback(() => {
+    setIsReady(true);
   }, []);
 
   useEffect(() => {
@@ -80,10 +81,10 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   }, [isPlaying, subtitles, currentSubtitle, onTimeUpdate]);
 
   useEffect(() => {
-    if (playerRef.current && initialTime > 0) {
+    if (isReady && playerRef.current && initialTime > 0) {
       playerRef.current.seekTo(initialTime, true);
     }
-  }, [initialTime]);
+  }, [isReady, initialTime]);
 
   const handleTimeChange = async (time: number) => {
     if (playerRef.current) {
@@ -100,14 +101,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           play={isPlaying}
           videoId={videoId}
           onChangeState={onStateChange}
-          webViewProps={{
-            allowsFullscreenVideo: true,
-            allowsInlineMediaPlayback: true,
-          }}
+          onReady={onPlayerReady}
           initialPlayerParams={{
             controls: true,
             modestbranding: true,
             rel: false,
+            start: initialTime
           }}
         />
       </View>
@@ -129,7 +128,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#eee',
   },
   playerSection: {
     width: '100%',
