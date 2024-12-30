@@ -11,6 +11,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
 import { RootStackParamList, RootTabParamList, VideoStackParamList } from './src/types/navigation';
+import { SettingsProvider } from './src/contexts/SettingsContext';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const Stack = createStackNavigator<VideoStackParamList>();
@@ -98,9 +99,11 @@ function MainTabs() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <MainTabs />
-      </NavigationContainer>
+      <SettingsProvider>
+        <NavigationContainer>
+          <MainTabs />
+        </NavigationContainer>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

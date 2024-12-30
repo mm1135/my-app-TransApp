@@ -1,5 +1,5 @@
-import { useRef, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Alert, Switch } from 'react-native';
 import { Subtitle } from '../utils/subtitles';
 import { decodeHtmlEntities } from '../utils/textUtils';
 import { translateText } from '../utils/translation';
@@ -7,6 +7,7 @@ import { fetchWordMeaning } from '../utils/dictionary';
 import { saveVocabularyItem } from '../utils/vocabulary';
 import { WordMeaning } from '../types/dictionary';
 import { VocabularyItem } from '../types/vocabulary';
+import { useSettings } from '../contexts/SettingsContext';
 
 interface Props {
   currentSubtitle: Subtitle | null;
@@ -32,6 +33,7 @@ export const SubtitleDisplay = ({ currentSubtitle, subtitles, currentTime, onTim
   const [showWordModal, setShowWordModal] = useState(false);
   const [wordMeaning, setWordMeaning] = useState<WordMeaning | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { settings } = useSettings();
 
   const handleTranslation = async (subtitle: Subtitle) => {
     if (!subtitle.translation && 
@@ -205,87 +207,91 @@ export const SubtitleDisplay = ({ currentSubtitle, subtitles, currentTime, onTim
   };
 
   return (
-    <ScrollView 
-      ref={scrollViewRef}
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={true}
-      scrollEventThrottle={16}
-    >
-      {subtitles.map((subtitle) => {
-        const isCurrentlyPlaying = 
-          currentTime >= subtitle.startTime && 
-          currentTime < subtitle.endTime;
-
-        const decodedText = decodeHtmlEntities(subtitle.text);
-        const translationText = subtitle.translation || translations[subtitle.id];
-        const isLoading = loadingTranslations[subtitle.id];
-
-        return (
-          <TouchableOpacity
-            key={subtitle.id}
-            onPress={() => handleSubtitlePress(subtitle.startTime)}
-            style={[
-              styles.subtitleItem,
-              isCurrentlyPlaying && styles.currentSubtitle
-            ]}
-          >
-            {renderTappableText(decodedText, isCurrentlyPlaying)}
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#666666" />
-            ) : (
-              translationText && (
-                <Text style={styles.translationText}>{translationText}</Text>
-              )
-            )}
-            <Text style={styles.timeText}>
-              {formatTime(subtitle.startTime)}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-
-      <Modal
-        visible={showWordModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowWordModal(false)}
+    <View style={styles.container}>
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={true}
+        scrollEventThrottle={16}
       >
-        <View style={styles.meaningModal}>
-          <View style={styles.meaningContent}>
-            <Text style={styles.selectedWord}>{selectedWord}</Text>
-            
-            {isLoading ? (
-              <ActivityIndicator size="small" color="#4A90E2" />
-            ) : wordMeaning ? (
-              <View style={styles.meaningContainer}>
-                <Text style={styles.japaneseTranslation}>
-                  {wordMeaning.japaneseTranslation}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.noMeaning}>意味が見つかりませんでした</Text>
-            )}
-            
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSaveWord}
-              >
-                <Text style={styles.saveButtonText}>保存</Text>
-              </TouchableOpacity>
+        {subtitles.map((subtitle) => {
+          const isCurrentlyPlaying = 
+            currentTime >= subtitle.startTime && 
+            currentTime < subtitle.endTime;
+
+          const decodedText = decodeHtmlEntities(subtitle.text);
+          const translationText = subtitle.translation || translations[subtitle.id];
+          const isLoading = loadingTranslations[subtitle.id];
+
+          return (
+            <TouchableOpacity
+              key={subtitle.id}
+              onPress={() => handleSubtitlePress(subtitle.startTime)}
+              style={[
+                styles.subtitleItem,
+                isCurrentlyPlaying && styles.currentSubtitle
+              ]}
+            >
+              {renderTappableText(decodedText, isCurrentlyPlaying)}
+              {settings.showJapaneseTranslation && (
+                isLoading ? (
+                  <ActivityIndicator size="small" color="#666666" />
+                ) : (
+                  translationText && (
+                    <Text style={styles.translationText}>{translationText}</Text>
+                  )
+                )
+              )}
+              <Text style={styles.timeText}>
+                {formatTime(subtitle.startTime)}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        <Modal
+          visible={showWordModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowWordModal(false)}
+        >
+          <View style={styles.meaningModal}>
+            <View style={styles.meaningContent}>
+              <Text style={styles.selectedWord}>{selectedWord}</Text>
               
-              <TouchableOpacity
-                style={[styles.modalButton, styles.closeButton]}
-                onPress={() => setShowWordModal(false)}
-              >
-                <Text style={styles.closeButtonText}>閉じる</Text>
-              </TouchableOpacity>
+              {isLoading ? (
+                <ActivityIndicator size="small" color="#4A90E2" />
+              ) : wordMeaning ? (
+                <View style={styles.meaningContainer}>
+                  <Text style={styles.japaneseTranslation}>
+                    {wordMeaning.japaneseTranslation}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.noMeaning}>意味が見つかりませんでした</Text>
+              )}
+              
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={handleSaveWord}
+                >
+                  <Text style={styles.saveButtonText}>保存</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.closeButton]}
+                  onPress={() => setShowWordModal(false)}
+                >
+                  <Text style={styles.closeButtonText}>閉じる</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </ScrollView>
+        </Modal>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -297,6 +303,9 @@ const formatTime = (seconds: number): string => {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollContainer: {
     flex: 1,
   },
   contentContainer: {
