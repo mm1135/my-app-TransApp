@@ -9,26 +9,26 @@ import {
   Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
-type Settings = {
-  showJapaneseTranslation: boolean;
-  autoPlayVideo: boolean;
-  reviewInterval: number;
-  notificationsEnabled: boolean;
+export interface ReviewSettings {
+  reviewMode: 'word' | 'sentence' | 'both';
+  randomizeOrder: boolean;
+  showProgress: boolean;
+  showStats: boolean;
+}
+
+const defaultSettings: ReviewSettings = {
+  reviewMode: 'sentence',
+  randomizeOrder: true,
+  showProgress: true,
+  showStats: true,
 };
 
-const DEFAULT_SETTINGS: Settings = {
-  showJapaneseTranslation: true,
-  autoPlayVideo: true,
-  reviewInterval: 24,
-  notificationsEnabled: true,
-};
-
-const SETTINGS_KEY = 'app_settings';
+const SETTINGS_KEY = 'review_settings';
 
 const SettingsScreen: React.FC = () => {
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<ReviewSettings>(defaultSettings);
 
   useEffect(() => {
     loadSettings();
@@ -45,7 +45,7 @@ const SettingsScreen: React.FC = () => {
     }
   };
 
-  const saveSettings = async (newSettings: Settings) => {
+  const saveSettings = async (newSettings: ReviewSettings) => {
     try {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
       setSettings(newSettings);
@@ -55,29 +55,10 @@ const SettingsScreen: React.FC = () => {
     }
   };
 
-  const handleToggleSetting = (key: keyof Settings) => {
-    const newSettings = {
-      ...settings,
-      [key]: !settings[key],
-    };
-    saveSettings(newSettings);
-  };
-
-  const handleReviewIntervalChange = () => {
-    const intervals = [24, 48, 72, 168];
-    const currentIndex = intervals.indexOf(settings.reviewInterval);
-    const nextIndex = (currentIndex + 1) % intervals.length;
-    const newSettings = {
-      ...settings,
-      reviewInterval: intervals[nextIndex],
-    };
-    saveSettings(newSettings);
-  };
-
   const clearAllData = async () => {
     Alert.alert(
       'データを削除',
-      'すべての保存データを削除しますか？\nこの操作は取り消せません。',
+      'すべての単語データと設定を削除しますか？\nこの操作は取り消せません。',
       [
         {
           text: 'キャンセル',
@@ -90,7 +71,15 @@ const SettingsScreen: React.FC = () => {
             try {
               await AsyncStorage.clear();
               Alert.alert('完了', 'すべてのデータを削除しました');
-              loadSettings();
+              // デフォルト設定を再適用
+              const defaultSettings: ReviewSettings = {
+                reviewMode: 'sentence',
+                randomizeOrder: true,
+                showProgress: true,
+                showStats: true,
+              };
+              await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings));
+              setSettings(defaultSettings);
             } catch (error) {
               console.error('データの削除に失敗しました:', error);
               Alert.alert('エラー', 'データの削除に失敗しました');
@@ -104,58 +93,110 @@ const SettingsScreen: React.FC = () => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>一般設定</Text>
+        <Text style={styles.sectionTitle}>復習モード設定</Text>
         
         <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>日本語訳を表示</Text>
-          <Switch
-            value={settings.showJapaneseTranslation}
-            onValueChange={() => handleToggleSetting('showJapaneseTranslation')}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>動画の自動再生</Text>
-          <Switch
-            value={settings.autoPlayVideo}
-            onValueChange={() => handleToggleSetting('autoPlayVideo')}
-          />
-        </View>
-
-        <View style={styles.settingItem}>
-          <Text style={styles.settingLabel}>通知</Text>
-          <Switch
-            value={settings.notificationsEnabled}
-            onValueChange={() => handleToggleSetting('notificationsEnabled')}
-          />
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>復習設定</Text>
-        
-        <TouchableOpacity
-          style={styles.settingItem}
-          onPress={handleReviewIntervalChange}
-        >
-          <Text style={styles.settingLabel}>復習間隔</Text>
-          <View style={styles.settingValue}>
-            <Text style={styles.settingValueText}>
-              {settings.reviewInterval}時間
-            </Text>
-            <MaterialIcons name="chevron-right" size={24} color="#666" />
+          <Text style={styles.settingLabel}>復習モード</Text>
+          <View style={styles.modeButtons}>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                settings.reviewMode === 'word' && styles.modeButtonActive,
+              ]}
+              onPress={() => saveSettings({ ...settings, reviewMode: 'word' })}
+            >
+              <Text style={[
+                styles.modeButtonText,
+                settings.reviewMode === 'word' && styles.modeButtonTextActive,
+              ]}>単語のみ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                settings.reviewMode === 'sentence' && styles.modeButtonActive,
+              ]}
+              onPress={() => saveSettings({ ...settings, reviewMode: 'sentence' })}
+            >
+              <Text style={[
+                styles.modeButtonText,
+                settings.reviewMode === 'sentence' && styles.modeButtonTextActive,
+              ]}>例文のみ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                settings.reviewMode === 'both' && styles.modeButtonActive,
+              ]}
+              onPress={() => saveSettings({ ...settings, reviewMode: 'both' })}
+            >
+              <Text style={[
+                styles.modeButtonText,
+                settings.reviewMode === 'both' && styles.modeButtonTextActive,
+              ]}>両方</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>ランダム順序</Text>
+            <Switch
+              value={settings.randomizeOrder}
+              onValueChange={(value) =>
+                saveSettings({ ...settings, randomizeOrder: value })
+              }
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={settings.randomizeOrder ? '#4CAF50' : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.settingDescription}>
+            復習する単語の順序をランダムにします
+          </Text>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>進捗表示</Text>
+            <Switch
+              value={settings.showProgress}
+              onValueChange={(value) =>
+                saveSettings({ ...settings, showProgress: value })
+              }
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={settings.showProgress ? '#4CAF50' : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.settingDescription}>
+            復習中の進捗バーを表示します
+          </Text>
+        </View>
+
+        <View style={styles.settingItem}>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingLabel}>統計情報表示</Text>
+            <Switch
+              value={settings.showStats}
+              onValueChange={(value) =>
+                saveSettings({ ...settings, showStats: value })
+              }
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={settings.showStats ? '#4CAF50' : '#f4f3f4'}
+            />
+          </View>
+          <Text style={styles.settingDescription}>
+            復習中に正解率などの統計を表示します
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.section}>
+      <View style={[styles.section, styles.dangerSection]}>
         <Text style={styles.sectionTitle}>データ管理</Text>
-        
         <TouchableOpacity
-          style={[styles.settingItem, styles.dangerButton]}
+          style={styles.resetButton}
           onPress={clearAllData}
         >
-          <Text style={styles.dangerButtonText}>すべてのデータを削除</Text>
+          <Ionicons name="trash-outline" size={24} color="#ff3b30" />
+          <Text style={styles.resetButtonText}>すべてのデータを削除</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -169,43 +210,84 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: 'white',
-    marginVertical: 10,
-    paddingVertical: 10,
+    margin: 16,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#666',
-    marginLeft: 15,
-    marginBottom: 10,
+    marginBottom: 16,
+    color: '#333',
   },
   settingItem: {
+    marginBottom: 20,
+  },
+  settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    backgroundColor: 'white',
+    marginBottom: 4,
   },
   settingLabel: {
     fontSize: 16,
     color: '#333',
+    fontWeight: '500',
   },
-  settingValue: {
+  settingDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  modeButtons: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#f5f5f5',
+    marginHorizontal: 4,
     alignItems: 'center',
   },
-  settingValueText: {
-    fontSize: 16,
+  modeButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  modeButtonText: {
     color: '#666',
-    marginRight: 5,
+    fontSize: 14,
+    fontWeight: '500',
   },
-  dangerButton: {
+  modeButtonTextActive: {
+    color: 'white',
+  },
+  dangerSection: {
+    marginTop: 20,
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#fff0f0',
+    borderRadius: 8,
   },
-  dangerButtonText: {
+  resetButtonText: {
     color: '#ff3b30',
     fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
 });
 

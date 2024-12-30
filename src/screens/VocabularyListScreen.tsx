@@ -6,10 +6,9 @@ import {
   FlatList,
   TouchableOpacity,
   Image,
-  Modal,
-  ScrollView,
   Alert,
-  SafeAreaView,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getVocabularyItems, deleteVocabularyItem, updateVocabularyItemImage } from '../utils/vocabulary';
@@ -37,11 +36,10 @@ interface SavedVideo {
 const VocabularyListScreen: React.FC = () => {
   const navigation = useNavigation<VocabularyListScreenNavigationProp>();
   const [items, setItems] = useState<VocabularyItem[]>([]);
-  const [showReview, setShowReview] = useState(false);
-  const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [reviewItems, setReviewItems] = useState<VocabularyItem[]>([]);
   const [savedVideos, setSavedVideos] = useState<SavedVideo[]>([]);
+  const [editingWord, setEditingWord] = useState<VocabularyItem | null>(null);
+  const [editedTranslation, setEditedTranslation] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     loadSavedVideos();
@@ -64,8 +62,35 @@ const VocabularyListScreen: React.FC = () => {
   };
 
   const loadItems = async () => {
-    const savedItems = await getVocabularyItems();
-    setItems(savedItems);
+    try {
+      const savedItems = await getVocabularyItems();
+      // 既存のデータに復習情報がない場合は追加
+      const updatedItems = savedItems.map(item => {
+        if (!item.reviewInfo) {
+          return {
+            ...item,
+            reviewInfo: {
+              lastReviewDate: 0,
+              nextReviewDate: Date.now(),
+              reviewCount: 0,
+              correctCount: 0,
+              level: 0,
+            }
+          };
+        }
+        return item;
+      });
+
+      // 更新されたデータを保存
+      if (savedItems.some(item => !item.reviewInfo)) {
+        await AsyncStorage.setItem('vocabulary_items', JSON.stringify(updatedItems));
+      }
+
+      setItems(updatedItems);
+    } catch (error) {
+      console.error('Error loading items:', error);
+      Alert.alert('エラー', '単語の読み込みに失敗しました');
+    }
   };
 
   useFocusEffect(
@@ -73,24 +98,6 @@ const VocabularyListScreen: React.FC = () => {
       loadItems();
     }, [])
   );
-
-  const startReview = () => {
-    const shuffledItems = [...items].sort(() => Math.random() - 0.5);
-    setReviewItems(shuffledItems);
-    setCurrentReviewIndex(0);
-    setShowAnswer(false);
-    setShowReview(true);
-  };
-
-  const handleJudgment = (isCorrect: boolean) => {
-    if (currentReviewIndex < reviewItems.length - 1) {
-      setCurrentReviewIndex(currentReviewIndex + 1);
-      setShowAnswer(false);
-    } else {
-      setShowReview(false);
-      Alert.alert('完了', '復習が終了しました！');
-    }
-  };
 
   const handleImageUpload = async (word: string) => {
     try {
@@ -135,6 +142,39 @@ const VocabularyListScreen: React.FC = () => {
     });
   };
 
+  const formatDate = (timestamp: number) => {
+    return new Date(timestamp).toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const handleEditTranslation = async () => {
+    if (!editingWord) return;
+
+    try {
+      const updatedItem = {
+        ...editingWord,
+        japaneseTranslation: editedTranslation,
+      };
+
+      const allItems = await getVocabularyItems();
+      const updatedItems = allItems.map(item =>
+        item.word === editingWord.word ? updatedItem : item
+      );
+
+      await AsyncStorage.setItem('vocabulary_items', JSON.stringify(updatedItems));
+      await loadItems();
+      setShowEditModal(false);
+      setEditingWord(null);
+      Alert.alert('成功', '日本語訳を更新しました');
+    } catch (error) {
+      console.error('Error updating translation:', error);
+      Alert.alert('エラー', '日本語訳の更新に失敗しました');
+    }
+  };
+
   const renderItem = ({ item }: { item: VocabularyItem }) => (
     <View style={styles.itemContainer}>
       <View style={styles.itemContent}>
@@ -142,7 +182,19 @@ const VocabularyListScreen: React.FC = () => {
           <View style={styles.textSection}>
             <View style={styles.wordHeader}>
               <Text style={styles.wordText}>{item.word}</Text>
-              <Text style={styles.meaningText}>{item.japaneseTranslation}</Text>
+              <View style={styles.meaningContainer}>
+                <Text style={styles.meaningText}>{item.japaneseTranslation}</Text>
+                <TouchableOpacity
+                  style={styles.editButton}
+                  onPress={() => {
+                    setEditingWord(item);
+                    setEditedTranslation(item.japaneseTranslation);
+                    setShowEditModal(true);
+                  }}
+                >
+                  <Ionicons name="pencil" size={16} color="#4CAF50" />
+                </TouchableOpacity>
+              </View>
             </View>
             {item.videoInfo && (
               <View style={styles.exampleContainer}>
@@ -150,6 +202,36 @@ const VocabularyListScreen: React.FC = () => {
                 <Text style={styles.videoTitleText}>{getVideoTitle(item.videoInfo.videoId)}</Text>
               </View>
             )}
+            <View style={styles.reviewInfoContainer}>
+              <View style={styles.reviewInfoRow}>
+                <View style={styles.reviewInfoItem}>
+                  <Ionicons name="repeat" size={16} color="#666" />
+                  <Text style={styles.reviewInfoText}>
+                    復習回数: {item.reviewInfo?.reviewCount || 0}回
+                  </Text>
+                </View>
+                <View style={styles.reviewInfoItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#666" />
+                  <Text style={styles.reviewInfoText}>
+                    正解率: {item.reviewInfo ? Math.round((item.reviewInfo.correctCount / item.reviewInfo.reviewCount) * 100) || 0 : 0}%
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.reviewInfoRow}>
+                <View style={styles.reviewInfoItem}>
+                  <Ionicons name="time" size={16} color="#666" />
+                  <Text style={styles.reviewInfoText}>
+                    前回: {item.reviewInfo?.lastReviewDate === 0 ? '-' : (item.reviewInfo?.lastReviewDate ? formatDate(item.reviewInfo.lastReviewDate) : '未復習')}
+                  </Text>
+                </View>
+                <View style={styles.reviewInfoItem}>
+                  <Ionicons name="calendar" size={16} color="#666" />
+                  <Text style={styles.reviewInfoText}>
+                    次回: {item.reviewInfo ? formatDate(item.reviewInfo.nextReviewDate) : formatDate(Date.now())}
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
 
           <View style={styles.rightSection}>
@@ -161,6 +243,7 @@ const VocabularyListScreen: React.FC = () => {
                     style={styles.changeImageButton}
                     onPress={() => handleImageUpload(item.word)}
                   >
+                    <Ionicons name="camera" size={16} color="white" />
                     <Text style={styles.changeImageText}>画像を変更</Text>
                   </TouchableOpacity>
                 </View>
@@ -177,7 +260,23 @@ const VocabularyListScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.deleteButton}
-              onPress={() => handleDelete(item.word)}
+              onPress={() => 
+                Alert.alert(
+                  '単語の削除',
+                  `"${item.word}"を削除してもよろしいですか？`,
+                  [
+                    {
+                      text: 'キャンセル',
+                      style: 'cancel',
+                    },
+                    {
+                      text: '削除',
+                      style: 'destructive',
+                      onPress: () => handleDelete(item.word),
+                    },
+                  ]
+                )
+              }
             >
               <Ionicons name="trash-outline" size={24} color="#ff5252" />
             </TouchableOpacity>
@@ -192,7 +291,7 @@ const VocabularyListScreen: React.FC = () => {
                   style={styles.thumbnail}
                 />
                 <View style={styles.playButton}>
-                  <Text style={styles.playButtonText}>▶</Text>
+                  <Ionicons name="play" size={20} color="white" />
                 </View>
               </TouchableOpacity>
             )}
@@ -223,7 +322,41 @@ const VocabularyListScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>単語一覧</Text>
-        <TouchableOpacity style={styles.reviewButton} onPress={startReview}>
+        <TouchableOpacity 
+          style={styles.reviewButton}
+          onPress={() => {
+            const now = Date.now();
+            const today = new Date(now);
+            today.setHours(0, 0, 0, 0);
+            const todayStart = today.getTime();
+            const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+
+            // 復習対象の単語を抽出
+            const reviewDueItems = items.filter(item => {
+              // 新規単語（まだ一度も復習していない）
+              const isNew = item.reviewInfo.lastReviewDate === 0;
+              // 次回の復習日が過ぎている単語
+              const isOverdue = item.reviewInfo.nextReviewDate < todayStart;
+              // 今日が復習日の単語
+              const isDueToday = item.reviewInfo.nextReviewDate >= todayStart && 
+                                item.reviewInfo.nextReviewDate < todayEnd;
+
+              return isNew || isOverdue || isDueToday;
+            });
+
+            if (reviewDueItems.length === 0) {
+              Alert.alert('お知らせ', '現在復習が必要な単語はありません');
+              return;
+            }
+
+            navigation.navigate('動画', {
+              screen: 'Review',
+              params: {
+                items: reviewDueItems
+              }
+            });
+          }}
+        >
           <Ionicons name="refresh" size={24} color="white" />
           <Text style={styles.reviewButtonText}>復習開始</Text>
         </TouchableOpacity>
@@ -236,77 +369,39 @@ const VocabularyListScreen: React.FC = () => {
         style={styles.list}
       />
 
-      <Modal 
-        visible={showReview} 
-        animationType="slide"
-        transparent={false}
-        statusBarTranslucent={false}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEditModal(false)}
       >
-        <SafeAreaView style={styles.reviewContainer}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setShowReview(false)}
-          >
-            <Ionicons name="close" size={24} color="#666" />
-          </TouchableOpacity>
-
-          {reviewItems.length > 0 && (
-            <ScrollView style={styles.reviewContent}>
-              <View style={styles.progressContainer}>
-                <Text style={styles.progressText}>
-                  {currentReviewIndex + 1} / {reviewItems.length}
-                </Text>
-              </View>
-
-              <View style={styles.cardContainer}>
-                <Text style={styles.exampleText}>
-                  {highlightWord(
-                    reviewItems[currentReviewIndex].videoInfo.subtitle,
-                    reviewItems[currentReviewIndex].word
-                  )}
-                </Text>
-
-                {showAnswer ? (
-                  <View style={styles.answerContainer}>
-                    <Text style={styles.reviewWordText}>
-                      {reviewItems[currentReviewIndex].word}
-                    </Text>
-                    <Text style={styles.reviewMeaningText}>
-                      {reviewItems[currentReviewIndex].japaneseTranslation}
-                    </Text>
-                    {reviewItems[currentReviewIndex].userImage && (
-                      <Image
-                        source={{ uri: reviewItems[currentReviewIndex].userImage }}
-                        style={styles.reviewImage}
-                      />
-                    )}
-                    <View style={styles.judgmentContainer}>
-                      <TouchableOpacity
-                        style={[styles.judgmentButton, styles.incorrectButton]}
-                        onPress={() => handleJudgment(false)}
-                      >
-                        <Text style={styles.judgmentButtonText}>❌</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.judgmentButton, styles.correctButton]}
-                        onPress={() => handleJudgment(true)}
-                      >
-                        <Text style={styles.judgmentButtonText}>⭕️</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.showButton}
-                    onPress={() => setShowAnswer(true)}
-                  >
-                    <Text style={styles.showButtonText}>答えを確認</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </ScrollView>
-          )}
-        </SafeAreaView>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>日本語訳を編集</Text>
+            <Text style={styles.wordLabel}>{editingWord?.word}</Text>
+            <TextInput
+              style={styles.translationInput}
+              value={editedTranslation}
+              onChangeText={setEditedTranslation}
+              placeholder="日本語訳を入力"
+              multiline
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowEditModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>キャンセル</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={handleEditTranslation}
+              >
+                <Text style={styles.saveButtonText}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </View>
   );
@@ -412,13 +507,17 @@ const styles = StyleSheet.create({
   },
   changeImageButton: {
     backgroundColor: '#4A90E2',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   changeImageText: {
     color: 'white',
     fontSize: 14,
+    marginLeft: 4,
   },
   videoThumbnail: {
     width: 100,
@@ -450,102 +549,6 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 10,
   },
-  reviewContainer: {
-    flex: 1,
-    backgroundColor: 'white',
-    marginBottom: 50,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 50,
-    right: 10,
-    padding: 15,
-    zIndex: 1,
-  },
-  reviewContent: {
-    flex: 1,
-    paddingTop: 100,
-    paddingHorizontal: 20,
-    paddingBottom: 70,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  progressText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  cardContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-    borderRadius: 8,
-    marginBottom: 80,
-  },
-  exampleText: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 10,
-  },
-  answerContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 10,
-  },
-  reviewWordText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  reviewMeaningText: {
-    fontSize: 18,
-    color: '#4CAF50',
-    marginBottom: 10,
-  },
-  reviewImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  judgmentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  judgmentButton: {
-    width: 80,
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 40,
-    margin: 10,
-  },
-  incorrectButton: {
-    backgroundColor: '#ff5252',
-  },
-  correctButton: {
-    backgroundColor: '#4CAF50',
-  },
-  judgmentButtonText: {
-    fontSize: 40,
-  },
-  showButton: {
-    backgroundColor: '#4CAF50',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  showButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
   subtitleText: {
     fontSize: 16,
     color: '#333',
@@ -556,21 +559,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffeb3b',
     fontWeight: 'bold',
   },
-  translatedExample: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-    marginTop: 8,
-  },
   wordText: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
   },
+  meaningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   meaningText: {
     fontSize: 18,
     color: '#4CAF50',
     marginBottom: 8,
+    marginRight: 8,
+  },
+  editButton: {
+    padding: 4,
   },
   exampleContainer: {
     backgroundColor: '#f5f5f5',
@@ -584,6 +589,84 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 8,
     fontStyle: 'italic',
+  },
+  reviewInfoContainer: {
+    backgroundColor: '#f8f9fa',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  reviewInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  reviewInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 8,
+  },
+  reviewInfoText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 8,
+    flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  wordLabel: {
+    fontSize: 16,
+    marginBottom: 10,
+  },
+  translationInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    padding: 10,
+    marginBottom: 20,
+    minHeight: 80,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 5,
+    marginHorizontal: 5,
+  },
+  cancelButton: {
+    backgroundColor: '#f5f5f5',
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButtonText: {
+    color: '#666',
+    textAlign: 'center',
+  },
+  saveButtonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: 'bold',
   },
 });
 

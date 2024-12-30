@@ -148,15 +148,22 @@ export const SubtitleDisplay = ({ currentSubtitle, subtitles, currentTime, onTim
             videoId: videoInfo.videoId,
             startTime: currentTime
           },
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          reviewInfo: {
+            lastReviewDate: 0,
+            nextReviewDate: Date.now(),
+            reviewCount: 0,
+            correctCount: 0,
+            level: 0,
+          },
         };
         
-        await saveVocabularyItem(vocabularyItem);
-        Alert.alert('成功', '単語を保存しました');
-        setShowWordModal(false);
+        const success = await saveVocabularyItem(vocabularyItem);
+        if (success) {
+          setShowWordModal(false);
+        }
       } catch (error) {
         console.error('Error saving word:', error);
-        Alert.alert('エラー', '単語の保存に失敗しました');
       }
     }
   };

@@ -142,15 +142,20 @@ export default function VideoLearningScreen() {
       word,
       japaneseTranslation: '',
       videoInfo,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      reviewInfo: {
+        lastReviewDate: 0,
+        nextReviewDate: Date.now(),
+        reviewCount: 0,
+        correctCount: 0,
+        level: 0,
+      },
     };
 
     try {
       await saveVocabularyItem(vocabularyItem);
-      Alert.alert('保存完了', '単語を保存しました');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving word:', error);
-      Alert.alert('エラー', error.message || '単語の保存に失敗しました');
     }
   };
 

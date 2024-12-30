@@ -1,22 +1,38 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VocabularyItem } from '../types/vocabulary';
+import { Alert } from 'react-native';
 
 const VOCABULARY_STORAGE_KEY = 'vocabulary_items';
 
-export const saveVocabularyItem = async (item: VocabularyItem) => {
+export const saveVocabularyItem = async (item: VocabularyItem): Promise<boolean> => {
   try {
     const existingItems = await getVocabularyItems();
-    const isDuplicate = existingItems.some(existingItem => existingItem.word === item.word);
-    
+    const isDuplicate = existingItems.some(
+      existingItem => existingItem.word.toLowerCase() === item.word.toLowerCase()
+    );
+
     if (isDuplicate) {
-      throw new Error('この単語は既に保存されています');
+      Alert.alert(
+        '登録済みの単語',
+        `"${item.word}"は既に単語帳に登録されています。`,
+        [
+          {
+            text: 'OK',
+            style: 'default',
+          }
+        ]
+      );
+      return false;
     }
 
     const updatedItems = [...existingItems, item];
     await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(updatedItems));
+    Alert.alert('保存完了', '単語を保存しました');
+    return true;
   } catch (error) {
     console.error('Error saving vocabulary item:', error);
-    throw error;
+    Alert.alert('エラー', '単語の保存に失敗しました');
+    return false;
   }
 };
 
