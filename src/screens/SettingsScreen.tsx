@@ -29,6 +29,7 @@ const SETTINGS_KEY = 'review_settings';
 
 const SettingsScreen: React.FC = () => {
   const [settings, setSettings] = useState<ReviewSettings>(defaultSettings);
+  const [showHowToUse, setShowHowToUse] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -71,14 +72,6 @@ const SettingsScreen: React.FC = () => {
             try {
               await AsyncStorage.clear();
               Alert.alert('完了', 'すべてのデータを削除しました');
-              // デフォルト設定を再適用
-              const defaultSettings: ReviewSettings = {
-                reviewMode: 'sentence',
-                randomizeOrder: true,
-                showProgress: true,
-                showStats: true,
-              };
-              await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings));
               setSettings(defaultSettings);
             } catch (error) {
               console.error('データの削除に失敗しました:', error);
@@ -90,115 +83,151 @@ const SettingsScreen: React.FC = () => {
     );
   };
 
+  const renderHowToUseSection = () => (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>アプリの使い方</Text>
+      
+      <TouchableOpacity
+        style={styles.howToUseButton}
+        onPress={() => setShowHowToUse(!showHowToUse)}
+      >
+        <Text style={styles.howToUseButtonText}>
+          {showHowToUse ? '説明を閉じる' : '使い方を見る'}
+        </Text>
+        <Ionicons
+          name={showHowToUse ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color="#4CAF50"
+        />
+      </TouchableOpacity>
+
+      {showHowToUse && (
+        <View style={styles.howToUseContent}>
+          <View style={styles.tabSection}>
+            <View style={styles.tabHeader}>
+              <Ionicons name="play" size={24} color="#4CAF50" />
+              <Text style={styles.tabTitle}>動画タブ</Text>
+            </View>
+            <Text style={styles.tabDescription}>
+              1. YouTubeの動画URLを追加{'\n'}
+              2. 動画を再生し、字幕から単語をタップ{'\n'}
+              3. 日本語訳を確認して単語帳に保存{'\n'}
+              4. 保存した単語には画像を追加可能
+            </Text>
+          </View>
+
+          <View style={styles.tabSection}>
+            <View style={styles.tabHeader}>
+              <Ionicons name="book" size={24} color="#4CAF50" />
+              <Text style={styles.tabTitle}>単語帳タブ</Text>
+            </View>
+            <Text style={styles.tabDescription}>
+              1. 保存した単語の一覧を表示{'\n'}
+              2. 単語ごとに例文、画像を確認{'\n'}
+              3. 「復習開始」で復習モードを開始{'\n'}
+              4. 単語の編集や削除が可能
+            </Text>
+          </View>
+
+          <View style={styles.tabSection}>
+            <View style={styles.tabHeader}>
+              <Ionicons name="refresh" size={24} color="#4CAF50" />
+              <Text style={styles.tabTitle}>復習について</Text>
+            </View>
+            <Text style={styles.tabDescription}>
+              1. 新規単語と復習期限が来た単語を表示{'\n'}
+              2. 単語・例文・両方から選んで復習{'\n'}
+              3. 正解すると次の復習間隔が延長{'\n'}
+              4. 不正解の場合は間隔が短くなります
+            </Text>
+          </View>
+
+          <View style={styles.tipSection}>
+            <Text style={styles.tipTitle}>Tips</Text>
+            <Text style={styles.tipText}>
+              ・単語には関連する画像を追加できます{'\n'}
+              ・復習は1日10単語を目安に行います{'\n'}
+              ・例文は実際の動画から学べます{'\n'}
+              ・単語の意味は後から編集可能です
+            </Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <ScrollView style={styles.container}>
+      {renderHowToUseSection()}
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>復習モード設定</Text>
-        
         <View style={styles.settingItem}>
           <Text style={styles.settingLabel}>復習モード</Text>
-          <View style={styles.modeButtons}>
+          <View style={styles.radioGroup}>
             <TouchableOpacity
-              style={[
-                styles.modeButton,
-                settings.reviewMode === 'word' && styles.modeButtonActive,
-              ]}
+              style={styles.radioButton}
               onPress={() => saveSettings({ ...settings, reviewMode: 'word' })}
             >
-              <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'word' && styles.modeButtonTextActive,
-              ]}>単語のみ</Text>
+              <View style={styles.radio}>
+                {settings.reviewMode === 'word' && <View style={styles.radioSelected} />}
+              </View>
+              <Text style={styles.radioLabel}>単語のみ</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
-              style={[
-                styles.modeButton,
-                settings.reviewMode === 'sentence' && styles.modeButtonActive,
-              ]}
+              style={styles.radioButton}
               onPress={() => saveSettings({ ...settings, reviewMode: 'sentence' })}
             >
-              <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'sentence' && styles.modeButtonTextActive,
-              ]}>例文のみ</Text>
+              <View style={styles.radio}>
+                {settings.reviewMode === 'sentence' && <View style={styles.radioSelected} />}
+              </View>
+              <Text style={styles.radioLabel}>例文のみ</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
-              style={[
-                styles.modeButton,
-                settings.reviewMode === 'both' && styles.modeButtonActive,
-              ]}
+              style={styles.radioButton}
               onPress={() => saveSettings({ ...settings, reviewMode: 'both' })}
             >
-              <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'both' && styles.modeButtonTextActive,
-              ]}>両方</Text>
+              <View style={styles.radio}>
+                {settings.reviewMode === 'both' && <View style={styles.radioSelected} />}
+              </View>
+              <Text style={styles.radioLabel}>両方</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>ランダム順序</Text>
-            <Switch
-              value={settings.randomizeOrder}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, randomizeOrder: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.randomizeOrder ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習する単語の順序をランダムにします
-          </Text>
+          <Text style={styles.settingLabel}>ランダム順</Text>
+          <Switch
+            value={settings.randomizeOrder}
+            onValueChange={(value) => saveSettings({ ...settings, randomizeOrder: value })}
+          />
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>進捗表示</Text>
-            <Switch
-              value={settings.showProgress}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, showProgress: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.showProgress ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習中の進捗バーを表示します
-          </Text>
+          <Text style={styles.settingLabel}>進捗表示</Text>
+          <Switch
+            value={settings.showProgress}
+            onValueChange={(value) => saveSettings({ ...settings, showProgress: value })}
+          />
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>統計情報表示</Text>
-            <Switch
-              value={settings.showStats}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, showStats: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.showStats ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習中に正解率などの統計を表示します
-          </Text>
+          <Text style={styles.settingLabel}>統計表示</Text>
+          <Switch
+            value={settings.showStats}
+            onValueChange={(value) => saveSettings({ ...settings, showStats: value })}
+          />
         </View>
       </View>
 
-      <View style={[styles.section, styles.dangerSection]}>
-        <Text style={styles.sectionTitle}>データ管理</Text>
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={clearAllData}
-        >
-          <Ionicons name="trash-outline" size={24} color="#ff3b30" />
-          <Text style={styles.resetButtonText}>すべてのデータを削除</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity
+        style={styles.clearDataButton}
+        onPress={clearAllData}
+      >
+        <Text style={styles.clearDataButtonText}>すべてのデータを削除</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -209,85 +238,121 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   section: {
-    backgroundColor: 'white',
-    margin: 16,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-  },
-  settingItem: {
+    backgroundColor: '#fff',
+    padding: 20,
     marginBottom: 20,
   },
-  settingRow: {
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 20,
   },
   settingLabel: {
     fontSize: 16,
     color: '#333',
-    fontWeight: '500',
   },
-  settingDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+  radioGroup: {
+    marginTop: 10,
   },
-  modeButtons: {
+  radioButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  modeButton: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 4,
     alignItems: 'center',
+    marginBottom: 10,
   },
-  modeButtonActive: {
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  radioSelected: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#4CAF50',
   },
-  modeButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '500',
+  radioLabel: {
+    fontSize: 16,
+    color: '#333',
   },
-  modeButtonTextActive: {
-    color: 'white',
-  },
-  dangerSection: {
-    marginTop: 20,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#fff0f0',
+  clearDataButton: {
+    backgroundColor: '#ff5252',
+    padding: 15,
     borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 20,
   },
-  resetButtonText: {
-    color: '#ff3b30',
+  clearDataButtonText: {
+    color: 'white',
+    textAlign: 'center',
     fontSize: 16,
     fontWeight: 'bold',
-    marginLeft: 8,
+  },
+  howToUseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  howToUseButtonText: {
+    fontSize: 16,
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  howToUseContent: {
+    marginTop: 10,
+  },
+  tabSection: {
+    marginBottom: 20,
+    backgroundColor: '#f8f9fa',
+    padding: 15,
+    borderRadius: 8,
+  },
+  tabHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  tabTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
+    color: '#333',
+  },
+  tabDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 22,
+  },
+  tipSection: {
+    backgroundColor: '#e8f5e9',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  tipTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2e7d32',
+    marginBottom: 8,
+  },
+  tipText: {
+    fontSize: 14,
+    color: '#1b5e20',
+    lineHeight: 22,
   },
 });
 
