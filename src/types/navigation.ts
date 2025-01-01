@@ -18,6 +18,7 @@ export type VideoStackParamList = {
 export type RootTabParamList = {
   動画: NavigatorScreenParams<VideoStackParamList>;
   単語帳: undefined;
+  履歴: undefined;
   設定: undefined;
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,8 +15,9 @@ import { useRoute, RouteProp, useNavigation } from '@react-navigation/native';
 import { VideoStackParamList } from '../types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { ReviewSettings } from './SettingsScreen';
+import { ReviewSettings } from '../contexts/SettingsContext';
 import { useFocusEffect } from '@react-navigation/native';
+import { recordStudyTime } from '../utils/studyTime';
 
 type ReviewScreenRouteProp = RouteProp<VideoStackParamList, 'Review'>;
 
@@ -49,8 +50,10 @@ const ReviewScreen: React.FC = () => {
     randomizeOrder: true,
     showProgress: true,
     showStats: true,
+    showJapaneseTranslation: true
   });
   const [currentMode, setCurrentMode] = useState<'word' | 'sentence' | 'both'>('word');
+  const startTime = useRef<number>(Date.now());
 
   useEffect(() => {
     loadSettings();
@@ -75,6 +78,15 @@ const ReviewScreen: React.FC = () => {
     }
   }, [route.params?.items, settings]);
 
+  useEffect(() => {
+    return () => {
+      const elapsedMinutes = Math.floor((Date.now() - startTime.current) / 60000);
+      if (elapsedMinutes > 0) {
+        recordStudyTime(elapsedMinutes);
+      }
+    };
+  }, []);
+
   const loadSettings = async () => {
     try {
       const savedSettings = await AsyncStorage.getItem('review_settings');
@@ -84,10 +96,11 @@ const ReviewScreen: React.FC = () => {
         setCurrentMode(parsedSettings.reviewMode);
       } else {
         const defaultSettings: ReviewSettings = {
-          reviewMode: 'sentence',
+          reviewMode: 'word',
           randomizeOrder: true,
           showProgress: true,
           showStats: true,
+          showJapaneseTranslation: true
         };
         await AsyncStorage.setItem('review_settings', JSON.stringify(defaultSettings));
         setSettings(defaultSettings);

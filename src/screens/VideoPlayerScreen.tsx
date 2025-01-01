@@ -1,51 +1,74 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../types/navigation';
+import { useRoute } from '@react-navigation/native';
+import type { RouteProp } from '@react-navigation/native';
+import type { RootStackParamList } from '../types/navigation';
 import VideoPlayer from '../components/VideoPlayer';
 import { fetchSubtitles, Subtitle } from '../utils/subtitles';
+import { recordStudyTime } from '../utils/studyTime';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'VideoPlayer'>;
+type VideoPlayerScreenRouteProp = RouteProp<RootStackParamList, 'VideoPlayer'>;
 
-export default function VideoPlayerScreen({ route }: Props) {
-  const { videoId, startTime } = route.params;
+const VideoPlayerScreen: React.FC = () => {
+  const route = useRoute<VideoPlayerScreenRouteProp>();
   const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
-  const [initialTime, setInitialTime] = useState<number>(startTime || 0);
+  const lastRecordedTime = useRef<number>(0);
+  const recordInterval = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    const loadSubtitles = async () => {
-      try {
-        const subs = await fetchSubtitles(videoId);
-        setSubtitles(subs);
-      } catch (error) {
-        console.error('字幕の読み込みに失敗しました:', error);
+    if (route.params.videoId) {
+      loadSubtitles(route.params.videoId);
+    }
+
+    // 1分ごとに学習時間を記録
+    recordInterval.current = setInterval(() => {
+      const elapsedMinutes = 1;
+      recordStudyTime(elapsedMinutes);
+    }, 60000); // 1分 = 60000ミリ秒
+
+    return () => {
+      if (recordInterval.current) {
+        clearInterval(recordInterval.current);
+      }
+      // 画面を離れるときに残りの時間を記録
+      const remainingMinutes = Math.floor((Date.now() - lastRecordedTime.current) / 60000);
+      if (remainingMinutes > 0) {
+        recordStudyTime(remainingMinutes);
       }
     };
+  }, [route.params.videoId]);
 
-    loadSubtitles();
-  }, [videoId]);
-
-  useEffect(() => {
-    if (startTime !== undefined) {
-      setInitialTime(startTime);
+  const loadSubtitles = async (videoId: string) => {
+    try {
+      const subs = await fetchSubtitles(videoId);
+      setSubtitles(subs);
+    } catch (error) {
+      console.error('字幕の読み込みに失敗しました:', error);
     }
-  }, [startTime]);
+  };
+
+  const handleTimeUpdate = (time: number) => {
+    lastRecordedTime.current = Date.now();
+  };
 
   return (
     <View style={styles.container}>
       <VideoPlayer
-        videoId={videoId}
+        videoId={route.params.videoId}
+        initialTime={route.params.startTime}
         subtitles={subtitles}
-        initialTime={initialTime}
+        onTimeUpdate={handleTimeUpdate}
         initialPaused={route.params.fromVocabulary}
       />
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
-}); 
+});
+
+export default VideoPlayerScreen; 

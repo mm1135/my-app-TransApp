@@ -10,6 +10,7 @@ import VocabularyListScreen from './src/screens/VocabularyListScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import VideoPlayerScreen from './src/screens/VideoPlayerScreen';
 import ReviewScreen from './src/screens/ReviewScreen';
+import StudyHistoryScreen from './src/screens/StudyHistoryScreen';
 import { RootStackParamList, RootTabParamList, VideoStackParamList } from './src/types/navigation';
 import { SettingsProvider } from './src/contexts/SettingsContext';
 
@@ -80,6 +81,15 @@ function MainTabs() {
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="book" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="履歴"
+        component={StudyHistoryScreen}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="time" size={size} color={color} />
           ),
         }}
       />

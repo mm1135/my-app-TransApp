@@ -1,68 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Switch,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   Alert,
   Image,
+  ImageSourcePropType,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSettings } from '../contexts/SettingsContext';
 
-export interface ReviewSettings {
-  reviewMode: 'word' | 'sentence' | 'both';
-  randomizeOrder: boolean;
-  showProgress: boolean;
-  showStats: boolean;
+interface SettingSectionProps {
+  title: string;
+  children: React.ReactNode;
 }
 
-const defaultSettings: ReviewSettings = {
-  reviewMode: 'sentence',
-  randomizeOrder: true,
-  showProgress: true,
-  showStats: true,
-};
-
-const SETTINGS_KEY = 'review_settings';
+interface InstructionSectionProps {
+  title: string;
+  description: string;
+  image?: ImageSourcePropType;
+}
 
 const SettingsScreen: React.FC = () => {
-  const [settings, setSettings] = useState<ReviewSettings>(defaultSettings);
-  const { settings: globalSettings, updateSettings: updateGlobalSettings } = useSettings();
-  const [showHowToUse, setShowHowToUse] = useState(false);
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const savedSettings = await AsyncStorage.getItem(SETTINGS_KEY);
-      if (savedSettings) {
-        setSettings(JSON.parse(savedSettings));
-      }
-    } catch (error) {
-      console.error('設定の読み込みに失敗しました:', error);
-    }
-  };
-
-  const saveSettings = async (newSettings: ReviewSettings) => {
-    try {
-      await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
-      setSettings(newSettings);
-    } catch (error) {
-      console.error('設定の保存に失敗しました:', error);
-      Alert.alert('エラー', '設定の保存に失敗しました');
-    }
-  };
+  const { settings, updateSettings } = useSettings();
+  const [showInstructions, setShowInstructions] = useState(false);
 
   const clearAllData = async () => {
     Alert.alert(
-      'データを削除',
-      'すべての単語データと設定を削除しますか？\nこの操作は取り消せません。',
+      'データの削除',
+      'すべてのデータを削除してもよろしいですか？\nこの操作は取り消せません。',
       [
         {
           text: 'キャンセル',
@@ -74,19 +44,9 @@ const SettingsScreen: React.FC = () => {
           onPress: async () => {
             try {
               await AsyncStorage.clear();
-              Alert.alert('完了', 'すべてのデータを削除しました');
-              // デフォルト設定を再適用
-              const defaultSettings: ReviewSettings = {
-                reviewMode: 'sentence',
-                randomizeOrder: true,
-                showProgress: true,
-                showStats: true,
-              };
-              await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(defaultSettings));
-              setSettings(defaultSettings);
+              Alert.alert('完了', 'すべてのデータを削除しました。');
             } catch (error) {
-              console.error('データの削除に失敗しました:', error);
-              Alert.alert('エラー', 'データの削除に失敗しました');
+              Alert.alert('エラー', 'データの削除に失敗しました。');
             }
           },
         },
@@ -94,227 +54,186 @@ const SettingsScreen: React.FC = () => {
     );
   };
 
-  const renderHowToUseSection = () => (
+  const SettingSection: React.FC<SettingSectionProps> = ({ title, children }) => (
     <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>使い方</Text>
-        <TouchableOpacity
-          style={styles.howToUseButton}
-          onPress={() => setShowHowToUse(!showHowToUse)}
-        >
-          <Text style={styles.howToUseButtonText}>
-            {showHowToUse ? '閉じる' : '開く'}
-          </Text>
-          <Ionicons
-            name={showHowToUse ? 'chevron-up' : 'chevron-down'}
-            size={20}
-            color="#4CAF50"
-          />
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionContent}>{children}</View>
+    </View>
+  );
 
-      {showHowToUse && (
-        <View style={styles.howToUseContent}>
-          <View style={styles.tabSection}>
-            <View style={styles.tabHeader}>
-              <Ionicons name="play-circle" size={24} color="#4CAF50" />
-              <Text style={styles.tabTitle}>動画タブ</Text>
-            </View>
-            <Text style={styles.tabDescription}>
-              1. YouTubeの動画URLを入力{'\n'}
-              2. 動画を再生し、字幕から単語をタップ{'\n'}
-              3. 日本語訳を確認して単語帳に保存{'\n'}
-              4. 保存した単語には画像を追加可能
-            </Text>
-          </View>
-
-          <View style={styles.tabSection}>
-            <View style={styles.tabHeader}>
-              <Ionicons name="book" size={24} color="#4CAF50" />
-              <Text style={styles.tabTitle}>単語帳タブ</Text>
-            </View>
-            <Text style={styles.tabDescription}>
-              1. 保存した単語の一覧を表示{'\n'}
-              2. 単語ごとに例文、画像を確認{'\n'}
-              3. 「復習開始」で復習モードを開始{'\n'}
-              4. 単語の編集や削除が可能
-            </Text>
-          </View>
-
-          <View style={styles.tabSection}>
-            <View style={styles.tabHeader}>
-              <Ionicons name="refresh" size={24} color="#4CAF50" />
-              <Text style={styles.tabTitle}>復習について</Text>
-            </View>
-            <Text style={styles.tabDescription}>
-              1. 新規単語と復習期限が来た単語を表示{'\n'}
-              2. 単語・例文・両方から選んで復習{'\n'}
-              3. 正解すると次の復習間隔が延長{'\n'}
-              4. 不正解の場合は間隔が短くなります
-            </Text>
-          </View>
-        </View>
+  const InstructionSection: React.FC<InstructionSectionProps> = ({ title, description, image }) => (
+    <View style={styles.instructionSection}>
+      <Text style={styles.instructionTitle}>{title}</Text>
+      <Text style={styles.instructionText}>{description}</Text>
+      {image && (
+        <Image source={image} style={styles.instructionImage} resizeMode="contain" />
       )}
     </View>
   );
 
   return (
     <ScrollView style={styles.container}>
-      {renderHowToUseSection()}
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>動画設定</Text>
-          <Ionicons name="videocam" size={24} color="#4CAF50" />
-        </View>
+      <SettingSection title="動画設定">
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>日本語訳を表示</Text>
-            <Switch
-              value={globalSettings.showJapaneseTranslation}
-              onValueChange={(value) =>
-                updateGlobalSettings({ showJapaneseTranslation: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={globalSettings.showJapaneseTranslation ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            動画再生時の日本語訳の表示を切り替えます
-          </Text>
+          <Text style={styles.settingLabel}>日本語訳を表示</Text>
+          <Switch
+            value={settings.showJapaneseTranslation}
+            onValueChange={(value) =>
+              updateSettings({ showJapaneseTranslation: value })
+            }
+          />
         </View>
-      </View>
+      </SettingSection>
 
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>復習モード設定</Text>
-          <Ionicons name="school" size={24} color="#4CAF50" />
-        </View>
-        
+      <SettingSection title="復習設定">
         <View style={styles.settingItem}>
           <Text style={styles.settingLabel}>復習モード</Text>
-          <View style={styles.modeButtons}>
+          <View style={styles.segmentedControl}>
             <TouchableOpacity
               style={[
-                styles.modeButton,
-                settings.reviewMode === 'word' && styles.modeButtonActive,
+                styles.segmentButton,
+                settings.reviewMode === 'word' && styles.segmentButtonActive,
               ]}
-              onPress={() => saveSettings({ ...settings, reviewMode: 'word' })}
+              onPress={() => updateSettings({ reviewMode: 'word' })}
             >
-              <Ionicons
-                name="text"
-                size={20}
-                color={settings.reviewMode === 'word' ? 'white' : '#666'}
-              />
               <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'word' && styles.modeButtonTextActive,
-              ]}>単語のみ</Text>
+                styles.segmentButtonText,
+                settings.reviewMode === 'word' && styles.segmentButtonTextActive,
+              ]}>単語</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[
-                styles.modeButton,
-                settings.reviewMode === 'sentence' && styles.modeButtonActive,
+                styles.segmentButton,
+                settings.reviewMode === 'sentence' && styles.segmentButtonActive,
               ]}
-              onPress={() => saveSettings({ ...settings, reviewMode: 'sentence' })}
+              onPress={() => updateSettings({ reviewMode: 'sentence' })}
             >
-              <Ionicons
-                name="document-text"
-                size={20}
-                color={settings.reviewMode === 'sentence' ? 'white' : '#666'}
-              />
               <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'sentence' && styles.modeButtonTextActive,
-              ]}>例文のみ</Text>
+                styles.segmentButtonText,
+                settings.reviewMode === 'sentence' && styles.segmentButtonTextActive,
+              ]}>例文</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[
-                styles.modeButton,
-                settings.reviewMode === 'both' && styles.modeButtonActive,
+                styles.segmentButton,
+                settings.reviewMode === 'both' && styles.segmentButtonActive,
               ]}
-              onPress={() => saveSettings({ ...settings, reviewMode: 'both' })}
+              onPress={() => updateSettings({ reviewMode: 'both' })}
             >
-              <Ionicons
-                name="albums"
-                size={20}
-                color={settings.reviewMode === 'both' ? 'white' : '#666'}
-              />
               <Text style={[
-                styles.modeButtonText,
-                settings.reviewMode === 'both' && styles.modeButtonTextActive,
+                styles.segmentButtonText,
+                settings.reviewMode === 'both' && styles.segmentButtonTextActive,
               ]}>両方</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>ランダム順序</Text>
-            <Switch
-              value={settings.randomizeOrder}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, randomizeOrder: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.randomizeOrder ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習する単語の順序をランダムにします
-          </Text>
+          <Text style={styles.settingLabel}>ランダム順序</Text>
+          <Switch
+            value={settings.randomizeOrder}
+            onValueChange={(value) => updateSettings({ randomizeOrder: value })}
+          />
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>進捗表示</Text>
-            <Switch
-              value={settings.showProgress}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, showProgress: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.showProgress ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習中の進捗バーを表示します
-          </Text>
+          <Text style={styles.settingLabel}>進捗を表示</Text>
+          <Switch
+            value={settings.showProgress}
+            onValueChange={(value) => updateSettings({ showProgress: value })}
+          />
         </View>
 
         <View style={styles.settingItem}>
-          <View style={styles.settingRow}>
-            <Text style={styles.settingLabel}>統計情報表示</Text>
-            <Switch
-              value={settings.showStats}
-              onValueChange={(value) =>
-                saveSettings({ ...settings, showStats: value })
-              }
-              trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.showStats ? '#4CAF50' : '#f4f3f4'}
-            />
-          </View>
-          <Text style={styles.settingDescription}>
-            復習中に正解率などの統計を表示します
-          </Text>
+          <Text style={styles.settingLabel}>統計を表示</Text>
+          <Switch
+            value={settings.showStats}
+            onValueChange={(value) => updateSettings({ showStats: value })}
+          />
         </View>
-      </View>
+      </SettingSection>
 
-      <View style={[styles.section, styles.dangerSection]}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>データ管理</Text>
-          <Ionicons name="warning" size={24} color="#ff3b30" />
-        </View>
+      <SettingSection title="使い方">
         <TouchableOpacity
-          style={styles.resetButton}
-          onPress={clearAllData}
+          style={styles.instructionsToggle}
+          onPress={() => setShowInstructions(!showInstructions)}
         >
-          <Ionicons name="trash-outline" size={24} color="#ff3b30" />
-          <Text style={styles.resetButtonText}>すべてのデータを削除</Text>
+          <Text style={styles.instructionsToggleText}>
+            使い方を{showInstructions ? '非表示' : '表示'}
+          </Text>
+          <Ionicons
+            name={showInstructions ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#007AFF"
+          />
         </TouchableOpacity>
-      </View>
+
+        {showInstructions && (
+          <View style={styles.instructions}>
+            <View style={styles.instructionSection}>
+              <Text style={styles.instructionMainTitle}>基本的な使い方</Text>
+              
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionHeader}>
+                  <Text style={styles.instructionNumber}>1</Text>
+                  <Text style={styles.instructionTitle}>動画タブの使い方</Text>
+                </View>
+                <View style={styles.instructionContent}>
+                  <Text style={styles.instructionSubtitle}>① 動画の追加</Text>
+                  <Text style={styles.instructionText}>YouTubeの動画URLを入力して動画を追加します。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>② 字幕の操作</Text>
+                  <Text style={styles.instructionText}>動画再生中に字幕をタップすると、単語を登録できます。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>③ 日本語訳の設定</Text>
+                  <Text style={styles.instructionText}>設定から日本語訳の表示/非表示を切り替えられます。</Text>
+                </View>
+              </View>
+
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionHeader}>
+                  <Text style={styles.instructionNumber}>2</Text>
+                  <Text style={styles.instructionTitle}>単語帳タブの使い方</Text>
+                </View>
+                <View style={styles.instructionContent}>
+                  <Text style={styles.instructionSubtitle}>① 単語の管理</Text>
+                  <Text style={styles.instructionText}>登録した単語の一覧を確認、編集、削除できます。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>② 復習モード</Text>
+                  <Text style={styles.instructionText}>「復習開始」ボタンで復習を開始できます。単語のみ、例文のみ、または両方から選択可能です。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>③ 復習設定</Text>
+                  <Text style={styles.instructionText}>ランダム順での出題や、進捗表示の有無を設定できます。</Text>
+                </View>
+              </View>
+
+              <View style={styles.instructionItem}>
+                <View style={styles.instructionHeader}>
+                  <Text style={styles.instructionNumber}>3</Text>
+                  <Text style={styles.instructionTitle}>履歴タブの使い方</Text>
+                </View>
+                <View style={styles.instructionContent}>
+                  <Text style={styles.instructionSubtitle}>① 学習グラフ</Text>
+                  <Text style={styles.instructionText}>縦軸：学習単語数（個）{'\n'}横軸：日付（日）{'\n'}グラフで日々の学習量の推移を確認できます。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>② 学習統計</Text>
+                  <Text style={styles.instructionText}>日別、週別、月別の学習統計を確認できます。</Text>
+                  
+                  <Text style={styles.instructionSubtitle}>③ 継続記録</Text>
+                  <Text style={styles.instructionText}>連続学習日数と総学習時間で、学習の継続状況を確認できます。</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+      </SettingSection>
+
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={clearAllData}
+      >
+        <Text style={styles.deleteButtonText}>すべてのデータを削除</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 };
@@ -322,135 +241,146 @@ const SettingsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fa',
   },
   section: {
-    backgroundColor: 'white',
-    margin: 16,
+    backgroundColor: '#fff',
+    marginVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    padding: 16,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 12,
+  },
+  sectionContent: {
+    gap: 16,
   },
   settingItem: {
-    marginBottom: 20,
-  },
-  settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    paddingVertical: 8,
   },
   settingLabel: {
     fontSize: 16,
     color: '#333',
-    fontWeight: '500',
   },
-  settingDescription: {
+  segmentedControl: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f3f5',
+    borderRadius: 8,
+    padding: 2,
+  },
+  segmentButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  segmentButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  segmentButtonText: {
     fontSize: 14,
     color: '#666',
-    marginTop: 4,
   },
-  modeButtons: {
+  segmentButtonTextActive: {
+    color: '#fff',
+  },
+  instructionsToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  modeButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 4,
   },
-  modeButtonActive: {
-    backgroundColor: '#4CAF50',
-  },
-  modeButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  modeButtonTextActive: {
-    color: 'white',
-  },
-  dangerSection: {
-    marginTop: 20,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#fff0f0',
-    borderRadius: 8,
-  },
-  resetButtonText: {
-    color: '#ff3b30',
+  instructionsToggleText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+    color: '#007AFF',
   },
-  howToUseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    padding: 8,
-    borderRadius: 8,
-  },
-  howToUseButtonText: {
-    color: '#4CAF50',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginRight: 4,
-  },
-  howToUseContent: {
+  instructions: {
     marginTop: 16,
   },
-  tabSection: {
-    marginBottom: 20,
-    backgroundColor: '#f8f9fa',
-    padding: 16,
+  instructionSection: {
+    marginBottom: 24,
+  },
+  instructionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  instructionText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  instructionImage: {
+    width: '100%',
+    height: 200,
+    marginTop: 12,
     borderRadius: 8,
   },
-  tabHeader: {
+  deleteButton: {
+    backgroundColor: '#ff3b30',
+    marginVertical: 24,
+    marginHorizontal: 16,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  instructionMainTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 16,
+  },
+  instructionItem: {
+    marginBottom: 24,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  instructionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
-  tabTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  instructionNumber: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#007AFF',
+    marginRight: 12,
+    width: 28,
+    height: 28,
+    textAlign: 'center',
+    lineHeight: 28,
+    backgroundColor: '#e8f2ff',
+    borderRadius: 14,
+  },
+  instructionContent: {
+    marginLeft: 40,
+  },
+  instructionSubtitle: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#333',
-  },
-  tabDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 22,
-  },
+    marginTop: 12,
+    marginBottom: 4,
+  }
 });
 
 export default SettingsScreen; 

@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface ReviewSettings {
+  showJapaneseTranslation: boolean;
   reviewMode: 'word' | 'sentence' | 'both';
   randomizeOrder: boolean;
   showProgress: boolean;
   showStats: boolean;
-  showJapaneseTranslation: boolean;
 }
 
 interface SettingsContextType {
@@ -15,11 +15,11 @@ interface SettingsContextType {
 }
 
 const defaultSettings: ReviewSettings = {
+  showJapaneseTranslation: true,
   reviewMode: 'word',
   randomizeOrder: true,
   showProgress: true,
   showStats: true,
-  showJapaneseTranslation: true,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
