@@ -11,33 +11,71 @@ import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+interface VocabularyItem {
+  id: string;
+  word: string;
+  meaning: string;
+  createdAt: string;
+  lastReviewedAt?: string;
+  correctCount: number;
+  totalCount: number;
+}
+
 interface StudyRecord {
   date: string;
   newWords: number;
   reviewedWords: number;
   correctRate: number;
-  studyTime: number; // 分単位
 }
 
 interface StudyStats {
   totalWords: number;
-  totalReviews: number;
-  averageCorrectRate: number;
-  studyStreak: number;
-  totalStudyTime: number; // 分単位
-  averageStudyTime: number; // 分単位/日
+  streak: number;
+  correctRate: number;
 }
+
+const formatDate = (date: Date): string => {
+  return date.toISOString().split('T')[0];
+};
+
+const isDateInRange = (date: Date, period: 'week' | 'month' | 'all'): boolean => {
+  const now = new Date();
+  const days = period === 'week' ? 7 : period === 'month' ? 30 : 365;
+  const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  return date >= startDate;
+};
+
+const loadVocabularyItems = async (): Promise<VocabularyItem[]> => {
+  const items = await AsyncStorage.getItem('vocabulary_items');
+  return items ? JSON.parse(items) : [];
+};
+
+const calculateStreak = (records: StudyRecord[]): number => {
+  if (records.length === 0) return 0;
+  
+  let streak = 0;
+  const today = new Date();
+  const dates = new Set(records.map(r => r.date));
+  
+  for (let i = 0; i < 365; i++) {
+    const date = formatDate(new Date(today.getTime() - i * 24 * 60 * 60 * 1000));
+    if (dates.has(date)) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  
+  return streak;
+};
 
 const StudyHistoryScreen: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('week');
   const [studyRecords, setStudyRecords] = useState<StudyRecord[]>([]);
   const [stats, setStats] = useState<StudyStats>({
     totalWords: 0,
-    totalReviews: 0,
-    averageCorrectRate: 0,
-    studyStreak: 0,
-    totalStudyTime: 0,
-    averageStudyTime: 0,
+    streak: 0,
+    correctRate: 0,
   });
 
   useEffect(() => {
@@ -46,85 +84,55 @@ const StudyHistoryScreen: React.FC = () => {
 
   const loadStudyHistory = async () => {
     try {
-      // 単語データの取得
-      const vocabularyItems = await AsyncStorage.getItem('vocabulary_items');
-      const studyTimeData = await AsyncStorage.getItem('study_time_records') || '{}';
-      if (!vocabularyItems) return;
-
-      const items = JSON.parse(vocabularyItems);
-      const timeRecords = JSON.parse(studyTimeData);
-      const now = new Date();
-      const records: StudyRecord[] = [];
-
-      // 期間に応じてデータをフィルタリング
-      const periodDays = selectedPeriod === 'week' ? 7 : selectedPeriod === 'month' ? 30 : 365;
-      const startDate = new Date(now.getTime() - periodDays * 24 * 60 * 60 * 1000);
-
-      // 日付ごとの学習記録を集計
-      items.forEach((item: any) => {
-        const itemDate = new Date(item.timestamp);
-        if (itemDate >= startDate) {
-          const dateStr = itemDate.toISOString().split('T')[0];
-          const existingRecord = records.find(r => r.date === dateStr);
-          const dailyStudyTime = timeRecords[dateStr] || 0;
-          
-          if (existingRecord) {
-            existingRecord.newWords++;
-            if (item.reviewInfo.reviewCount > 0) {
-              existingRecord.reviewedWords += item.reviewInfo.reviewCount;
-              existingRecord.correctRate = (existingRecord.correctRate + 
-                (item.reviewInfo.correctCount / item.reviewInfo.reviewCount)) / 2;
-            }
-            existingRecord.studyTime = dailyStudyTime;
-          } else {
-            records.push({
-              date: dateStr,
-              newWords: 1,
-              reviewedWords: item.reviewInfo.reviewCount,
-              correctRate: item.reviewInfo.reviewCount > 0 
-                ? item.reviewInfo.correctCount / item.reviewInfo.reviewCount * 100
-                : 0,
-              studyTime: dailyStudyTime,
-            });
-          }
-        }
+      const vocabularyItems = await loadVocabularyItems();
+      const filteredItems = vocabularyItems.filter(item => {
+        const itemDate = new Date(item.lastReviewedAt || item.createdAt);
+        return isDateInRange(itemDate, selectedPeriod);
       });
+
+      const recordsByDate = new Map<string, StudyRecord>();
+
+      filteredItems.forEach(item => {
+        const date = new Date(item.lastReviewedAt || item.createdAt);
+        const dateStr = formatDate(date);
+        
+        const record = recordsByDate.get(dateStr) || {
+          date: dateStr,
+          newWords: 0,
+          reviewedWords: 0,
+          correctRate: 0
+        };
+
+        if (item.lastReviewedAt) {
+          record.reviewedWords += 1;
+          if (item.correctCount > 0) {
+            record.correctRate = (record.correctRate * (record.reviewedWords - 1) + (item.correctCount / item.totalCount)) / record.reviewedWords;
+          }
+        } else {
+          record.newWords += 1;
+        }
+
+        recordsByDate.set(dateStr, record);
+      });
+
+      const sortedRecords = Array.from(recordsByDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+      setStudyRecords(sortedRecords);
 
       // 統計情報の計算
-      const totalWords = items.length;
-      const totalReviews = items.reduce((sum: number, item: any) => 
-        sum + item.reviewInfo.reviewCount, 0);
-      const averageCorrectRate = items.reduce((sum: number, item: any) => 
-        sum + (item.reviewInfo.reviewCount > 0 
-          ? item.reviewInfo.correctCount / item.reviewInfo.reviewCount
-          : 0), 0) / items.length * 100;
-      
-      // 学習時間の統計
-      const totalStudyTime = records.reduce((sum, record) => sum + record.studyTime, 0);
-      const averageStudyTime = totalStudyTime / records.length;
+      const totalNewWords = sortedRecords.reduce((sum, record) => sum + record.newWords, 0);
+      const totalReviewedWords = sortedRecords.reduce((sum, record) => sum + record.reviewedWords, 0);
+      const averageCorrectRate = sortedRecords.length > 0
+        ? sortedRecords.reduce((sum, record) => sum + record.correctRate, 0) / sortedRecords.length
+        : 0;
 
-      // 学習継続日数の計算
-      let streak = 0;
-      const dates = new Set(records.map(r => r.date));
-      for (let i = 0; i < periodDays; i++) {
-        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
-          .toISOString().split('T')[0];
-        if (dates.has(date)) {
-          streak++;
-        } else {
-          break;
-        }
-      }
+      const currentStreak = calculateStreak(sortedRecords);
 
-      setStudyRecords(records.sort((a, b) => a.date.localeCompare(b.date)));
       setStats({
-        totalWords,
-        totalReviews,
-        averageCorrectRate,
-        studyStreak: streak,
-        totalStudyTime,
-        averageStudyTime,
+        totalWords: totalNewWords + totalReviewedWords,
+        streak: currentStreak,
+        correctRate: averageCorrectRate * 100
       });
+
     } catch (error) {
       console.error('Error loading study history:', error);
     }
@@ -214,40 +222,22 @@ const StudyHistoryScreen: React.FC = () => {
           <Text style={styles.sectionTitle}>学習統計</Text>
           <View style={styles.periodButtons}>
             <TouchableOpacity
-              style={[
-                styles.periodButton,
-                selectedPeriod === 'week' && styles.periodButtonActive,
-              ]}
+              style={[styles.periodButton, selectedPeriod === 'week' && styles.periodButtonActive]}
               onPress={() => setSelectedPeriod('week')}
             >
-              <Text style={[
-                styles.periodButtonText,
-                selectedPeriod === 'week' && styles.periodButtonTextActive,
-              ]}>週間</Text>
+              <Text style={[styles.periodButtonText, selectedPeriod === 'week' && styles.periodButtonTextActive]}>週間</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.periodButton,
-                selectedPeriod === 'month' && styles.periodButtonActive,
-              ]}
+              style={[styles.periodButton, selectedPeriod === 'month' && styles.periodButtonActive]}
               onPress={() => setSelectedPeriod('month')}
             >
-              <Text style={[
-                styles.periodButtonText,
-                selectedPeriod === 'month' && styles.periodButtonTextActive,
-              ]}>月間</Text>
+              <Text style={[styles.periodButtonText, selectedPeriod === 'month' && styles.periodButtonTextActive]}>月間</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[
-                styles.periodButton,
-                selectedPeriod === 'all' && styles.periodButtonActive,
-              ]}
+              style={[styles.periodButton, selectedPeriod === 'all' && styles.periodButtonActive]}
               onPress={() => setSelectedPeriod('all')}
             >
-              <Text style={[
-                styles.periodButtonText,
-                selectedPeriod === 'all' && styles.periodButtonTextActive,
-              ]}>全期間</Text>
+              <Text style={[styles.periodButtonText, selectedPeriod === 'all' && styles.periodButtonTextActive]}>全期間</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -259,36 +249,19 @@ const StudyHistoryScreen: React.FC = () => {
             <Text style={styles.statsLabel}>総単語数</Text>
           </View>
           <View style={styles.statsItem}>
-            <Ionicons name="refresh" size={24} color="#FF9F40" />
-            <Text style={styles.statsValue}>{stats.totalReviews}</Text>
-            <Text style={styles.statsLabel}>総復習回数</Text>
-          </View>
-          <View style={styles.statsItem}>
             <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-            <Text style={styles.statsValue}>{Math.round(stats.averageCorrectRate)}%</Text>
-            <Text style={styles.statsLabel}>平均正解率</Text>
+            <Text style={styles.statsValue}>{stats.correctRate.toFixed(1)}%</Text>
+            <Text style={styles.statsLabel}>正解率</Text>
           </View>
           <View style={styles.statsItem}>
             <Ionicons name="flame" size={24} color="#FF5252" />
-            <Text style={styles.statsValue}>{stats.studyStreak}</Text>
-            <Text style={styles.statsLabel}>継続日数</Text>
+            <Text style={styles.statsValue}>{stats.streak}日</Text>
+            <Text style={styles.statsLabel}>学習継続日数</Text>
           </View>
-          <View style={styles.statsItem}>
-            <Ionicons name="time" size={24} color="#2196F3" />
-            <Text style={styles.statsValue}>{formatStudyTime(stats.totalStudyTime)}</Text>
-            <Text style={styles.statsLabel}>総学習時間</Text>
-          </View>
-          <View style={styles.statsItem}>
-            <Ionicons name="hourglass" size={24} color="#9C27B0" />
-            <Text style={styles.statsValue}>{formatStudyTime(stats.averageStudyTime)}</Text>
-            <Text style={styles.statsLabel}>平均学習時間/日</Text>
-          </View>
-        </View>
-
-        <View style={styles.chartContainer}>
-          {renderChart()}
         </View>
       </View>
+
+      {renderChart()}
     </ScrollView>
   );
 };
