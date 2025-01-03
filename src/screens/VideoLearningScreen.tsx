@@ -142,6 +142,7 @@ export default function VideoLearningScreen() {
       word,
       japaneseTranslation: '',
       videoInfo,
+      
       timestamp: Date.now(),
       reviewInfo: {
         lastReviewDate: 0,

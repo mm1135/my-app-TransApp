@@ -11,6 +11,7 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
+    "@expo/metro-runtime": "~4.0.0",
     "@expo/vector-icons": "^14.0.4",
     "@mui/icons-material": "^6.2.0",
     "@mui/material": "^6.2.0",
@@ -36,6 +37,7 @@
     "react-native-safe-area-context": "^5.0.0",
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "^0.19.13",
+    "react-native-web-webview": "^1.0.2",
     "react-native-webview": "13.12.5",
     "react-native-youtube-iframe": "^2.3.0",
     "react-youtube": "^10.1.0"

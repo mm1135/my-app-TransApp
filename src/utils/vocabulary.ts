@@ -27,7 +27,6 @@ export const saveVocabularyItem = async (item: VocabularyItem): Promise<boolean>
 
     const updatedItems = [...existingItems, item];
     await AsyncStorage.setItem(VOCABULARY_STORAGE_KEY, JSON.stringify(updatedItems));
-    Alert.alert('保存完了', '単語を保存しました');
     return true;
   } catch (error) {
     console.error('Error saving vocabulary item:', error);
@@ -38,6 +37,7 @@ export const saveVocabularyItem = async (item: VocabularyItem): Promise<boolean>
 
 export const getVocabularyItems = async (): Promise<VocabularyItem[]> => {
   try {
+    console.log('getVocabularyItems');
     const items = await AsyncStorage.getItem(VOCABULARY_STORAGE_KEY);
     return items ? JSON.parse(items) : [];
   } catch (error) {
